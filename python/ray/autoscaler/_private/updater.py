@@ -76,7 +76,7 @@ class NodeUpdater:
                  restart_only=False,
                  for_recovery=False):
 
-        self.log_prefix = "NodeUpdater: {}: ".format(node_id)
+        self.log_prefix = f"NodeUpdater: {node_id}: "
         use_internal_ip = (use_internal_ip
                            or provider_config.get("use_internal_ips", False))
         self.cmd_runner = provider.get_command_runner(
@@ -129,8 +129,7 @@ class NodeUpdater:
             cli_logger.abort(msg)
 
         try:
-            with LogTimer(self.log_prefix +
-                          "Applied config {}".format(self.runtime_hash)):
+            with LogTimer(f"{self.log_prefix}Applied config {self.runtime_hash}"):
                 self.do_update()
         except Exception as e:
             self.provider.set_node_tags(
@@ -237,9 +236,9 @@ class NodeUpdater:
 
     def wait_ready(self, deadline):
         with cli_logger.group(
-                "Waiting for SSH to become available",
-                _numbered=("[]", 1, NUM_SETUP_STEPS)):
-            with LogTimer(self.log_prefix + "Got remote shell"):
+                    "Waiting for SSH to become available",
+                    _numbered=("[]", 1, NUM_SETUP_STEPS)):
+            with LogTimer(f"{self.log_prefix}Got remote shell"):
 
                 cli_logger.print("Running `{}` as a test.", cf.bold("uptime"))
                 first_conn_refused_time = None
@@ -258,7 +257,7 @@ class NodeUpdater:
                         return True
                     except ProcessRunnerError as e:
                         first_conn_refused_time = \
-                            cmd_output_util.handle_ssh_fails(
+                                cmd_output_util.handle_ssh_fails(
                                 e, first_conn_refused_time,
                                 retry_interval=READY_CHECK_INTERVAL)
                         time.sleep(READY_CHECK_INTERVAL)
@@ -270,7 +269,7 @@ class NodeUpdater:
                         # however threading this configuration state
                         # is a pain and I'm leaving it for later
 
-                        retry_str = "(" + str(e) + ")"
+                        retry_str = f"({str(e)})"
                         if hasattr(e, "cmd"):
                             if isinstance(e.cmd, str):
                                 cmd_ = e.cmd
@@ -280,8 +279,7 @@ class NodeUpdater:
                                 logger.debug(f"e.cmd type ({type(e.cmd)}) not "
                                              "list or str.")
                                 cmd_ = str(e.cmd)
-                            retry_str = "(Exit Status {}): {}".format(
-                                e.returncode, cmd_)
+                            retry_str = f"(Exit Status {e.returncode}): {cmd_}"
 
                         cli_logger.print(
                             "SSH still not available {}, "
@@ -301,16 +299,14 @@ class NodeUpdater:
             CreateClusterEvent.ssh_control_acquired)
 
         node_tags = self.provider.node_tags(self.node_id)
-        logger.debug("Node tags: {}".format(str(node_tags)))
+        logger.debug(f"Node tags: {str(node_tags)}")
 
         if node_tags.get(TAG_RAY_RUNTIME_CONFIG) == self.runtime_hash:
-            # When resuming from a stopped instance the runtime_hash may be the
-            # same, but the container will not be started.
-            init_required = self.cmd_runner.run_init(
+            if init_required := self.cmd_runner.run_init(
                 as_head=self.is_head_node,
                 file_mounts=self.file_mounts,
-                sync_run_yet=False)
-            if init_required:
+                sync_run_yet=False,
+            ):
                 node_tags[TAG_RAY_RUNTIME_CONFIG] += "-invalidate"
                 # This ensures that `setup_commands` are not removed
                 self.restart_only = False
@@ -353,13 +349,11 @@ class NodeUpdater:
 
                 if self.initialization_commands:
                     with cli_logger.group(
-                            "Running initialization commands",
-                            _numbered=("[]", 4, NUM_SETUP_STEPS)):
+                                            "Running initialization commands",
+                                            _numbered=("[]", 4, NUM_SETUP_STEPS)):
                         global_event_system.execute_callback(
                             CreateClusterEvent.run_initialization_cmd)
-                        with LogTimer(
-                                self.log_prefix + "Initialization commands",
-                                show_status=True):
+                        with LogTimer(f"{self.log_prefix}Initialization commands", show_status=True):
                             for cmd in self.initialization_commands:
                                 global_event_system.execute_callback(
                                     CreateClusterEvent.run_initialization_cmd,
@@ -398,14 +392,12 @@ class NodeUpdater:
                         sync_run_yet=True)
                 if self.setup_commands:
                     with cli_logger.group(
-                            "Running setup commands",
-                            # todo: fix command numbering
-                            _numbered=("[]", 6, NUM_SETUP_STEPS)):
+                                            "Running setup commands",
+                                            # todo: fix command numbering
+                                            _numbered=("[]", 6, NUM_SETUP_STEPS)):
                         global_event_system.execute_callback(
                             CreateClusterEvent.run_setup_cmd)
-                        with LogTimer(
-                                self.log_prefix + "Setup commands",
-                                show_status=True):
+                        with LogTimer(f"{self.log_prefix}Setup commands", show_status=True):
 
                             total = len(self.setup_commands)
                             for i, cmd in enumerate(self.setup_commands):
@@ -413,7 +405,7 @@ class NodeUpdater:
                                     CreateClusterEvent.run_setup_cmd,
                                     {"command": cmd})
                                 if cli_logger.verbosity == 0 and len(cmd) > 30:
-                                    cmd_to_print = cf.bold(cmd[:30]) + "..."
+                                    cmd_to_print = f"{cf.bold(cmd[:30])}..."
                                 else:
                                     cmd_to_print = cf.bold(cmd)
 
@@ -439,25 +431,21 @@ class NodeUpdater:
                         _numbered=("[]", 6, NUM_SETUP_STEPS))
 
         with cli_logger.group(
-                "Starting the Ray runtime", _numbered=("[]", 7,
-                                                       NUM_SETUP_STEPS)):
+                    "Starting the Ray runtime", _numbered=("[]", 7,
+                                                           NUM_SETUP_STEPS)):
             global_event_system.execute_callback(
                 CreateClusterEvent.start_ray_runtime)
-            with LogTimer(
-                    self.log_prefix + "Ray start commands", show_status=True):
+            with LogTimer(f"{self.log_prefix}Ray start commands", show_status=True):
                 for cmd in self.ray_start_commands:
 
                     # Add a resource override env variable if needed:
-                    if self.provider_type == "local":
+                    if self.provider_type == "local" or not self.node_resources:
                         # Local NodeProvider doesn't need resource override.
                         env_vars = {}
-                    elif self.node_resources:
+                    else:
                         env_vars = {
                             RESOURCES_ENVIRONMENT_VARIABLE: self.node_resources
                         }
-                    else:
-                        env_vars = {}
-
                     try:
                         old_redirected = cmd_output_util.is_output_redirected()
                         cmd_output_util.set_output_redirected(False)
@@ -477,18 +465,20 @@ class NodeUpdater:
                 CreateClusterEvent.start_ray_runtime_completed)
 
     def rsync_up(self, source, target, docker_mount_if_possible=False):
-        options = {}
-        options["docker_mount_if_possible"] = docker_mount_if_possible
-        options["rsync_exclude"] = self.rsync_options.get("rsync_exclude")
+        options = {
+            "docker_mount_if_possible": docker_mount_if_possible,
+            "rsync_exclude": self.rsync_options.get("rsync_exclude"),
+        }
         options["rsync_filter"] = self.rsync_options.get("rsync_filter")
         self.cmd_runner.run_rsync_up(source, target, options=options)
         cli_logger.verbose("`rsync`ed {} (local) to {} (remote)",
                            cf.bold(source), cf.bold(target))
 
     def rsync_down(self, source, target, docker_mount_if_possible=False):
-        options = {}
-        options["docker_mount_if_possible"] = docker_mount_if_possible
-        options["rsync_exclude"] = self.rsync_options.get("rsync_exclude")
+        options = {
+            "docker_mount_if_possible": docker_mount_if_possible,
+            "rsync_exclude": self.rsync_options.get("rsync_exclude"),
+        }
         options["rsync_filter"] = self.rsync_options.get("rsync_filter")
         self.cmd_runner.run_rsync_down(source, target, options=options)
         cli_logger.verbose("`rsync`ed {} (remote) to {} (local)",

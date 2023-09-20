@@ -105,8 +105,7 @@ def _load_aliyun_defaults_config():
 
 
 def _import_external(provider_config):
-    provider_cls = _load_class(path=provider_config["module"])
-    return provider_cls
+    return _load_class(path=provider_config["module"])
 
 
 _NODE_PROVIDERS = {
@@ -171,8 +170,9 @@ def _get_node_provider_cls(provider_config: Dict[str, Any]):
     """
     importer = _NODE_PROVIDERS.get(provider_config["type"])
     if importer is None:
-        raise NotImplementedError("Unsupported node provider: {}".format(
-            provider_config["type"]))
+        raise NotImplementedError(
+            f'Unsupported node provider: {provider_config["type"]}'
+        )
     return importer(provider_config)
 
 
@@ -221,8 +221,9 @@ def _get_default_config(provider_config):
         return copy.deepcopy(MINIMAL_EXTERNAL_CONFIG)
     load_config = _DEFAULT_CONFIGS.get(provider_config["type"])
     if load_config is None:
-        raise NotImplementedError("Unsupported node provider: {}".format(
-            provider_config["type"]))
+        raise NotImplementedError(
+            f'Unsupported node provider: {provider_config["type"]}'
+        )
     path_to_default = load_config()
     with open(path_to_default) as f:
         defaults = yaml.safe_load(f)

@@ -37,13 +37,12 @@ NUM_REDIS_GET_RETRIES = 20
 
 def _get_with_retry(redis_client, key, num_retries=NUM_REDIS_GET_RETRIES):
     result = None
-    for i in range(num_retries):
+    for _ in range(num_retries):
         result = redis_client.get(key)
         if result is not None:
             break
-        else:
-            logger.debug(f"Fetched {key}=None from redis. Retrying.")
-            time.sleep(2)
+        logger.debug(f"Fetched {key}=None from redis. Retrying.")
+        time.sleep(2)
     if not result:
         raise RuntimeError(f"Could not read '{key}' from GCS (redis). "
                            "Has redis started correctly on the head node?")
@@ -55,13 +54,12 @@ def _hget_with_retry(redis_client,
                      field,
                      num_retries=NUM_REDIS_GET_RETRIES):
     result = None
-    for i in range(num_retries):
+    for _ in range(num_retries):
         result = redis_client.hget(key, field)
         if result is not None:
             break
-        else:
-            logger.debug(f"Fetched {key}=None from redis. Retrying.")
-            time.sleep(2)
+        logger.debug(f"Fetched {key}=None from redis. Retrying.")
+        time.sleep(2)
     if not result:
         raise RuntimeError(f"Could not read '{key}' from GCS (redis). "
                            "Has redis started correctly on the head node?")
@@ -173,8 +171,7 @@ class Node:
         if head:
             redis_client = None
             # date including microsecond
-            date_str = datetime.datetime.today().strftime(
-                "%Y-%m-%d_%H-%M-%S_%f")
+            date_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
             self.session_name = f"session_{date_str}_{os.getpid()}"
         else:
             redis_client = self.create_redis_client()
@@ -229,9 +226,9 @@ class Node:
 
         if head:
             ray_params.update_if_absent(num_redis_shards=1)
-            gcs_server_port = os.getenv(
-                ray_constants.GCS_PORT_ENVIRONMENT_VARIABLE)
-            if gcs_server_port:
+            if gcs_server_port := os.getenv(
+                ray_constants.GCS_PORT_ENVIRONMENT_VARIABLE
+            ):
                 ray_params.update_if_absent(gcs_server_port=gcs_server_port)
             self._webui_url = None
         else:
@@ -515,8 +512,7 @@ class Node:
             if index == 0:
                 filename = os.path.join(directory_name, prefix + suffix)
             else:
-                filename = os.path.join(directory_name,
-                                        prefix + "." + str(index) + suffix)
+                filename = os.path.join(directory_name, f"{prefix}.{str(index)}{suffix}")
             index += 1
             if not os.path.exists(filename):
                 # Save the index.
@@ -694,10 +690,10 @@ class Node:
         """Start the Redis servers."""
         assert self._redis_address is None
         redis_log_files = [self.get_log_file_handles("redis", unique=True)]
-        for i in range(self._ray_params.num_redis_shards):
-            redis_log_files.append(
-                self.get_log_file_handles(f"redis-shard_{i}", unique=True))
-
+        redis_log_files.extend(
+            self.get_log_file_handles(f"redis-shard_{i}", unique=True)
+            for i in range(self._ray_params.num_redis_shards)
+        )
         (self._redis_address, redis_shards,
          process_infos) = ray._private.services.start_redis(
              self._node_ip_address,
@@ -997,9 +993,8 @@ class Node:
             if process.poll() is not None:
                 if check_alive:
                     raise RuntimeError(
-                        "Attempting to kill a process of type "
-                        "'{}', but this process is already dead."
-                        .format(process_type))
+                        f"Attempting to kill a process of type '{process_type}', but this process is already dead."
+                    )
                 else:
                     continue
 
@@ -1007,9 +1002,7 @@ class Node:
                 process.terminate()
                 process.wait()
                 if process.returncode != 0:
-                    message = ("Valgrind detected some errors in process of "
-                               "type {}. Error code {}.".format(
-                                   process_type, process.returncode))
+                    message = f"Valgrind detected some errors in process of type {process_type}. Error code {process.returncode}."
                     if process_info.stdout_file is not None:
                         with open(process_info.stdout_file, "r") as f:
                             message += "\nPROCESS STDOUT:\n" + f.read()
@@ -1175,9 +1168,11 @@ class Node:
         """
         result = []
         for process_type, process_infos in self.all_processes.items():
-            for process_info in process_infos:
-                if process_info.process.poll() is None:
-                    result.append((process_type, process_info.process))
+            result.extend(
+                (process_type, process_info.process)
+                for process_info in process_infos
+                if process_info.process.poll() is None
+            )
         return result
 
     def dead_processes(self):
@@ -1192,9 +1187,11 @@ class Node:
         """
         result = []
         for process_type, process_infos in self.all_processes.items():
-            for process_info in process_infos:
-                if process_info.process.poll() is not None:
-                    result.append((process_type, process_info.process))
+            result.extend(
+                (process_type, process_info.process)
+                for process_info in process_infos
+                if process_info.process.poll() is not None
+            )
         return result
 
     def any_processes_alive(self):
@@ -1217,8 +1214,9 @@ class Node:
         return not any(self.dead_processes())
 
     def destroy_external_storage(self):
-        object_spilling_config = self._config.get("object_spilling_config", {})
-        if object_spilling_config:
+        if object_spilling_config := self._config.get(
+            "object_spilling_config", {}
+        ):
             object_spilling_config = json.loads(object_spilling_config)
             from ray import external_storage
             storage = external_storage.setup_external_storage(

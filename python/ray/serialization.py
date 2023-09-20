@@ -190,9 +190,7 @@ class SerializationContext:
                 return self._deserialize_msgpack_data(data, metadata_fields)
             # Check if the object should be returned as raw bytes.
             if metadata_fields[0] == ray_constants.OBJECT_METADATA_TYPE_RAW:
-                if data is None:
-                    return b""
-                return data.to_pybytes()
+                return b"" if data is None else data.to_pybytes()
             elif metadata_fields[
                     0] == ray_constants.OBJECT_METADATA_TYPE_ACTOR_HANDLE:
                 obj = self._deserialize_msgpack_data(data, metadata_fields)
@@ -215,9 +213,9 @@ class SerializationContext:
                 return WorkerCrashedError()
             elif error_type == ErrorType.Value("ACTOR_DIED"):
                 if data:
-                    pb_bytes = self._deserialize_msgpack_data(
-                        data, metadata_fields)
-                    if pb_bytes:
+                    if pb_bytes := self._deserialize_msgpack_data(
+                        data, metadata_fields
+                    ):
                         return RayError.from_bytes(pb_bytes)
                 return RayActorError()
             elif error_type == ErrorType.Value("TASK_CANCELLED"):
@@ -228,8 +226,8 @@ class SerializationContext:
                 return RuntimeEnvSetupError()
             else:
                 assert error_type != ErrorType.Value("OBJECT_IN_PLASMA"), \
-                    "Tried to get object that has been promoted to plasma."
-                assert False, "Unrecognized error type " + str(error_type)
+                        "Tried to get object that has been promoted to plasma."
+                assert False, f"Unrecognized error type {error_type}"
         elif data:
             raise ValueError("non-null object should always have metadata")
         else:

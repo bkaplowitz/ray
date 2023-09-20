@@ -22,37 +22,34 @@ MEMORY_SIZE_UNITS = {
 
 class InvalidNamespaceError(ValueError):
     def __init__(self, field_name, namespace):
-        self.message = ("Namespace of {} config doesn't match provided "
-                        "namespace '{}'. Either set it to {} or remove the "
-                        "field".format(field_name, namespace, namespace))
+        self.message = f"Namespace of {field_name} config doesn't match provided namespace '{namespace}'. Either set it to {namespace} or remove the field"
 
     def __str__(self):
         return self.message
 
 
 def using_existing_msg(resource_type, name):
-    return "using existing {} '{}'".format(resource_type, name)
+    return f"using existing {resource_type} '{name}'"
 
 
 def updating_existing_msg(resource_type, name):
-    return "updating existing {} '{}'".format(resource_type, name)
+    return f"updating existing {resource_type} '{name}'"
 
 
 def not_found_msg(resource_type, name):
-    return "{} '{}' not found, attempting to create it".format(
-        resource_type, name)
+    return f"{resource_type} '{name}' not found, attempting to create it"
 
 
 def not_checking_msg(resource_type, name):
-    return "not checking if {} '{}' exists".format(resource_type, name)
+    return f"not checking if {resource_type} '{name}' exists"
 
 
 def created_msg(resource_type, name):
-    return "successfully created {} '{}'".format(resource_type, name)
+    return f"successfully created {resource_type} '{name}'"
 
 
 def not_provided_msg(resource_type):
-    return "no {} config provided, must already exist".format(resource_type)
+    return f"no {resource_type} config provided, must already exist"
 
 
 def bootstrap_kubernetes(config):
@@ -110,8 +107,8 @@ def fillout_resources_kubernetes(config):
         config["available_node_types"][node_type][
             "resources"] = autodetected_resources
         logger.debug(
-            "Updating the resources of node type {} to include {}.".format(
-                node_type, autodetected_resources))
+            f"Updating the resources of node type {node_type} to include {autodetected_resources}."
+        )
     return config
 
 
@@ -165,7 +162,7 @@ def _get_resource(container_resources, resource_name, field_name):
     # Look for keys containing the resource_name. For example,
     # the key 'nvidia.com/gpu' contains the key 'gpu'.
     matching_keys = [key for key in resources if resource_name in key.lower()]
-    if len(matching_keys) == 0:
+    if not matching_keys:
         return float("inf")
     if len(matching_keys) > 1:
         # Should have only one match -- mostly relevant for gpu.
@@ -206,7 +203,7 @@ def _configure_namespace(provider_config):
         raise ValueError("Must specify namespace in Kubernetes config.")
 
     namespace = provider_config[namespace_field]
-    field_selector = "metadata.name={}".format(namespace)
+    field_selector = f"metadata.name={namespace}"
     try:
         namespaces = core_api().list_namespace(
             field_selector=field_selector).items
@@ -242,7 +239,7 @@ def _configure_autoscaler_service_account(namespace, provider_config):
         raise InvalidNamespaceError(account_field, namespace)
 
     name = account["metadata"]["name"]
-    field_selector = "metadata.name={}".format(name)
+    field_selector = f"metadata.name={name}"
     accounts = core_api().list_namespaced_service_account(
         namespace, field_selector=field_selector).items
     if len(accounts) > 0:
@@ -268,7 +265,7 @@ def _configure_autoscaler_role(namespace, provider_config):
         raise InvalidNamespaceError(role_field, namespace)
 
     name = role["metadata"]["name"]
-    field_selector = "metadata.name={}".format(name)
+    field_selector = f"metadata.name={name}"
     accounts = auth_api().list_namespaced_role(
         namespace, field_selector=field_selector).items
     if len(accounts) > 0:
@@ -297,11 +294,11 @@ def _configure_autoscaler_role_binding(namespace, provider_config):
             subject["namespace"] = namespace
         elif subject["namespace"] != namespace:
             raise InvalidNamespaceError(
-                binding_field + " subject '{}'".format(subject["name"]),
-                namespace)
+                f"""{binding_field} subject '{subject["name"]}'""", namespace
+            )
 
     name = binding["metadata"]["name"]
-    field_selector = "metadata.name={}".format(name)
+    field_selector = f"metadata.name={name}"
     accounts = auth_api().list_namespaced_role_binding(
         namespace, field_selector=field_selector).items
     if len(accounts) > 0:
@@ -328,7 +325,7 @@ def _configure_services(namespace, provider_config):
             raise InvalidNamespaceError(service_field, namespace)
 
         name = service["metadata"]["name"]
-        field_selector = "metadata.name={}".format(name)
+        field_selector = f"metadata.name={name}"
         services = core_api().list_namespaced_service(
             namespace, field_selector=field_selector).items
         if len(services) > 0:

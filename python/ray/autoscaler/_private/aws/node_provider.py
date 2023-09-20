@@ -127,17 +127,11 @@ class AWSNodeProvider(NodeProvider):
                 "Name": "instance-state-name",
                 "Values": ["pending", "running"],
             },
-            {
-                "Name": "tag:{}".format(TAG_RAY_CLUSTER_NAME),
-                "Values": [self.cluster_name],
-            },
+            {"Name": f"tag:{TAG_RAY_CLUSTER_NAME}", "Values": [self.cluster_name]},
         ]
-        for k, v in tag_filters.items():
-            filters.append({
-                "Name": "tag:{}".format(k),
-                "Values": [v],
-            })
-
+        filters.extend(
+            {"Name": f"tag:{k}", "Values": [v]} for k, v in tag_filters.items()
+        )
         with boto_exception_handler(
                 "Failed to fetch running instances from AWS."):
             nodes = list(self.ec2.instances.filter(Filters=filters))
@@ -225,8 +219,8 @@ class AWSNodeProvider(NodeProvider):
 
     def _create_tags(self, batch_updates):
         for (k, v), node_ids in batch_updates.items():
-            m = "Set tag {}={} on {}".format(k, v, node_ids)
-            with LogTimer("AWSNodeProvider: {}".format(m)):
+            m = f"Set tag {k}={v} on {node_ids}"
+            with LogTimer(f"AWSNodeProvider: {m}"):
                 if k == TAG_RAY_NODE_NAME:
                     k = "Name"
                 self.ec2.meta.client.create_tags(
@@ -257,24 +251,26 @@ class AWSNodeProvider(NodeProvider):
                     "Values": ["stopped", "stopping"],
                 },
                 {
-                    "Name": "tag:{}".format(TAG_RAY_CLUSTER_NAME),
+                    "Name": f"tag:{TAG_RAY_CLUSTER_NAME}",
                     "Values": [self.cluster_name],
                 },
                 {
-                    "Name": "tag:{}".format(TAG_RAY_NODE_KIND),
+                    "Name": f"tag:{TAG_RAY_NODE_KIND}",
                     "Values": [tags[TAG_RAY_NODE_KIND]],
                 },
                 {
-                    "Name": "tag:{}".format(TAG_RAY_LAUNCH_CONFIG),
+                    "Name": f"tag:{TAG_RAY_LAUNCH_CONFIG}",
                     "Values": [tags[TAG_RAY_LAUNCH_CONFIG]],
                 },
             ]
             # This tag may not always be present.
             if TAG_RAY_USER_NODE_TYPE in tags:
-                filters.append({
-                    "Name": "tag:{}".format(TAG_RAY_USER_NODE_TYPE),
-                    "Values": [tags[TAG_RAY_USER_NODE_TYPE]],
-                })
+                filters.append(
+                    {
+                        "Name": f"tag:{TAG_RAY_USER_NODE_TYPE}",
+                        "Values": [tags[TAG_RAY_USER_NODE_TYPE]],
+                    }
+                )
 
             reuse_nodes = list(
                 self.ec2.instances.filter(Filters=filters))[:count]
@@ -355,11 +351,13 @@ class AWSNodeProvider(NodeProvider):
             "Key": TAG_RAY_CLUSTER_NAME,
             "Value": self.cluster_name,
         }]
-        for k, v in tags.items():
-            tag_pairs.append({
+        tag_pairs.extend(
+            {
                 "Key": k,
                 "Value": v,
-            })
+            }
+            for k, v in tags.items()
+        )
         tag_specs = [{
             "ResourceType": "instance",
             "Tags": tag_pairs,
@@ -451,13 +449,6 @@ class AWSNodeProvider(NodeProvider):
         else:
             node.terminate()
 
-        # TODO (Alex): We are leaking the tag cache here. Naively, we would
-        # want to just remove the cache entry here, but terminating can be
-        # asyncrhonous or error, which would result in a use after free error.
-        # If this leak becomes bad, we can garbage collect the tag cache when
-        # the node cache is updated.
-        pass
-
     def terminate_nodes(self, node_ids):
         if not node_ids:
             return
@@ -524,7 +515,7 @@ class AWSNodeProvider(NodeProvider):
         # Node not in {pending, running} -- retry with a point query. This
         # usually means the node was recently preempted or terminated.
         matches = list(self.ec2.instances.filter(InstanceIds=[node_id]))
-        assert len(matches) == 1, "Invalid instance id {}".format(node_id)
+        assert len(matches) == 1, f"Invalid instance id {node_id}"
         return matches[0]
 
     def _get_cached_node(self, node_id):
@@ -558,42 +549,43 @@ class AWSNodeProvider(NodeProvider):
         for node_type in available_node_types:
             instance_type = available_node_types[node_type]["node_config"][
                 "InstanceType"]
-            if instance_type in instances_dict:
-                cpus = instances_dict[instance_type]["VCpuInfo"][
-                    "DefaultVCpus"]
+            if instance_type not in instances_dict:
+                raise ValueError(
+                    f"Instance type {instance_type} is not available in AWS region: "
+                    + cluster_config["provider"]["region"]
+                    + "."
+                )
+            cpus = instances_dict[instance_type]["VCpuInfo"][
+                "DefaultVCpus"]
 
-                autodetected_resources = {"CPU": cpus}
-                if node_type != head_node_type:
-                    # we only autodetect worker node type memory resource
-                    memory_total = instances_dict[instance_type]["MemoryInfo"][
-                        "SizeInMiB"]
-                    memory_total = int(memory_total) * 1024 * 1024
-                    prop = (
-                        1 -
-                        ray_constants.DEFAULT_OBJECT_STORE_MEMORY_PROPORTION)
-                    memory_resources = int(memory_total * prop)
-                    autodetected_resources["memory"] = memory_resources
+            autodetected_resources = {"CPU": cpus}
+            if node_type != head_node_type:
+                # we only autodetect worker node type memory resource
+                memory_total = instances_dict[instance_type]["MemoryInfo"][
+                    "SizeInMiB"]
+                memory_total = int(memory_total) * 1024 * 1024
+                prop = (
+                    1 -
+                    ray_constants.DEFAULT_OBJECT_STORE_MEMORY_PROPORTION)
+                autodetected_resources["memory"] = int(memory_total * prop)
 
-                gpus = instances_dict[instance_type].get("GpuInfo",
-                                                         {}).get("Gpus")
-                if gpus is not None:
-                    # TODO(ameer): currently we support one gpu type per node.
-                    assert len(gpus) == 1
-                    gpu_name = gpus[0]["Name"]
-                    autodetected_resources.update({
-                        "GPU": gpus[0]["Count"],
-                        f"accelerator_type:{gpu_name}": 1
-                    })
-                autodetected_resources.update(
-                    available_node_types[node_type].get("resources", {}))
-                if autodetected_resources != \
-                        available_node_types[node_type].get("resources", {}):
-                    available_node_types[node_type][
-                        "resources"] = autodetected_resources
-                    logger.debug("Updating the resources of {} to {}.".format(
-                        node_type, autodetected_resources))
-            else:
-                raise ValueError("Instance type " + instance_type +
-                                 " is not available in AWS region: " +
-                                 cluster_config["provider"]["region"] + ".")
+            gpus = instances_dict[instance_type].get("GpuInfo",
+                                                     {}).get("Gpus")
+            if gpus is not None:
+                # TODO(ameer): currently we support one gpu type per node.
+                assert len(gpus) == 1
+                gpu_name = gpus[0]["Name"]
+                autodetected_resources.update({
+                    "GPU": gpus[0]["Count"],
+                    f"accelerator_type:{gpu_name}": 1
+                })
+            autodetected_resources.update(
+                available_node_types[node_type].get("resources", {}))
+            if autodetected_resources != \
+                            available_node_types[node_type].get("resources", {}):
+                available_node_types[node_type][
+                    "resources"] = autodetected_resources
+                logger.debug(
+                    f"Updating the resources of {node_type} to {autodetected_resources}."
+                )
         return cluster_config

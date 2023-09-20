@@ -74,21 +74,21 @@ class SnapshotHead(dashboard_utils.DashboardHeadModule):
             entry = {
                 "job_id": actor_table_entry.job_id.hex(),
                 "state": gcs_pb2.ActorTableData.ActorState.Name(
-                    actor_table_entry.state),
+                    actor_table_entry.state
+                ),
                 "name": actor_table_entry.name,
                 "namespace": actor_table_entry.ray_namespace,
                 "runtime_env": runtime_env,
                 "start_time": actor_table_entry.start_time,
                 "end_time": actor_table_entry.end_time,
                 "is_detached": actor_table_entry.is_detached,
-                "resources": dict(
-                    actor_table_entry.task_spec.required_resources),
+                "resources": dict(actor_table_entry.task_spec.required_resources),
                 "actor_class": actor_table_entry.class_name,
                 "current_worker_id": actor_table_entry.address.worker_id.hex(),
                 "current_raylet_id": actor_table_entry.address.raylet_id.hex(),
                 "ip_address": actor_table_entry.address.ip_address,
                 "port": actor_table_entry.address.port,
-                "metadata": dict()
+                "metadata": {},
             }
             actors[actor_id] = entry
 
@@ -97,11 +97,11 @@ class SnapshotHead(dashboard_utils.DashboardHeadModule):
                 for replica_actor_id, actor_info in deployment_info[
                         "actors"].items():
                     if replica_actor_id in actors:
-                        serve_metadata = dict()
-                        serve_metadata["replica_tag"] = actor_info[
-                            "replica_tag"]
-                        serve_metadata["deployment_name"] = deployment_name
-                        serve_metadata["version"] = actor_info["version"]
+                        serve_metadata = {
+                            "replica_tag": actor_info["replica_tag"],
+                            "deployment_name": deployment_name,
+                            "version": actor_info["version"],
+                        }
                         actors[replica_actor_id]["metadata"][
                             "serve"] = serve_metadata
         return actors

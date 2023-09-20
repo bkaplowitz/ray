@@ -17,8 +17,9 @@ def wait_for_nodes(expected):
     while True:
         num_nodes = len(ray.nodes())
         if num_nodes < expected:
-            print("{} nodes have joined so far, waiting for {} more.".format(
-                num_nodes, expected - num_nodes))
+            print(
+                f"{num_nodes} nodes have joined so far, waiting for {expected - num_nodes} more."
+            )
             sys.stdout.flush()
             time.sleep(1)
         else:
@@ -30,7 +31,7 @@ def main():
 
     # Check that objects can be transferred from each node to each other node.
     for i in range(10):
-        print("Iteration {}".format(i))
+        print(f"Iteration {i}")
         results = [
             gethostname.remote(gethostname.remote(())) for _ in range(100)
         ]

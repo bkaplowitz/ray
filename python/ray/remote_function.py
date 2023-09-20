@@ -81,7 +81,7 @@ class RemoteFunction:
                              "See more at docs.ray.io/async_api.html")
         self._language = language
         self._function = _inject_tracing_into_function(function)
-        self._function_name = (function.__module__ + "." + function.__name__)
+        self._function_name = f"{function.__module__}.{function.__name__}"
         self._function_descriptor = function_descriptor
         self._is_cross_language = language != Language.PYTHON
         self._num_cpus = (DEFAULT_REMOTE_FUNCTION_CPUS
@@ -225,8 +225,8 @@ class RemoteFunction:
         # If this function was not exported in this session and job, we need to
         # export this function again, because the current GCS doesn't have it.
         if not self._is_cross_language and \
-                self._last_export_session_and_job != \
-                worker.current_session_and_job:
+                    self._last_export_session_and_job != \
+                    worker.current_session_and_job:
             # There is an interesting question here. If the remote function is
             # used by a subsequent driver (in the same script), should the
             # second driver pickle the function again? If yes, then the remote
@@ -304,8 +304,8 @@ class RemoteFunction:
 
             if worker.mode == ray.worker.LOCAL_MODE:
                 assert not self._is_cross_language, \
-                    "Cross language remote function " \
-                    "cannot be executed locally."
+                        "Cross language remote function " \
+                        "cannot be executed locally."
             object_refs = worker.core_worker.submit_task(
                 self._language,
                 self._function_descriptor,
@@ -320,7 +320,8 @@ class RemoteFunction:
                 worker.debugger_breakpoint,
                 runtime_env_dict,
                 override_environment_variables=override_environment_variables
-                or dict())
+                or {},
+            )
             # Reset worker's debug context from the last "remote" command
             # (which applies only to this .remote call).
             worker.debugger_breakpoint = b""

@@ -278,24 +278,22 @@ if __name__ == "__main__":
         required=False,
         type=str,
         default=dashboard_consts.DASHBOARD_AGENT_LOG_FILENAME,
-        help="Specify the name of log file, "
-        "log to stdout if set empty, default is \"{}\".".format(
-            dashboard_consts.DASHBOARD_AGENT_LOG_FILENAME))
+        help=f'Specify the name of log file, log to stdout if set empty, default is \"{dashboard_consts.DASHBOARD_AGENT_LOG_FILENAME}\".',
+    )
     parser.add_argument(
         "--logging-rotate-bytes",
         required=False,
         type=int,
         default=ray_constants.LOGGING_ROTATE_BYTES,
-        help="Specify the max bytes for rotating "
-        "log file, default is {} bytes.".format(
-            ray_constants.LOGGING_ROTATE_BYTES))
+        help=f"Specify the max bytes for rotating log file, default is {ray_constants.LOGGING_ROTATE_BYTES} bytes.",
+    )
     parser.add_argument(
         "--logging-rotate-backup-count",
         required=False,
         type=int,
         default=ray_constants.LOGGING_ROTATE_BACKUP_COUNT,
-        help="Specify the backup count of rotated log file, default is {}.".
-        format(ray_constants.LOGGING_ROTATE_BACKUP_COUNT))
+        help=f"Specify the backup count of rotated log file, default is {ray_constants.LOGGING_ROTATE_BACKUP_COUNT}.",
+    )
     parser.add_argument(
         "--log-dir",
         required=True,
@@ -374,8 +372,7 @@ if __name__ == "__main__":
             args.redis_address, password=args.redis_password)
         traceback_str = ray._private.utils.format_error_message(
             traceback.format_exc())
-        message = ("The agent on node {} failed with the following "
-                   "error:\n{}".format(platform.uname()[1], traceback_str))
+        message = f"The agent on node {platform.uname()[1]} failed with the following error:\n{traceback_str}"
         ray._private.utils.push_error_to_driver_through_redis(
             redis_client, ray_constants.DASHBOARD_AGENT_DIED_ERROR, message)
         logger.exception(message)

@@ -54,8 +54,8 @@ class ProcessRunnerError(Exception):
                  command=None,
                  special_case=None):
         super(ProcessRunnerError, self).__init__(
-            "{} (discovered={}): type={}, code={}, command={}".format(
-                msg, special_case, msg_type, code, command))
+            f"{msg} (discovered={special_case}): type={msg_type}, code={code}, command={command}"
+        )
 
         self.msg_type = msg_type
         self.code = code
@@ -340,24 +340,23 @@ def run_cmd_redirected(cmd,
             stdout_file=sys.stdout,
             stderr_file=sys.stderr,
             use_login_shells=use_login_shells)
-    else:
-        tmpfile_path = os.path.join(
-            tempfile.gettempdir(), "ray-up-{}-{}.txt".format(
-                cmd[0], time.time()))
-        with open(
-                tmpfile_path,
-                mode="w",
-                # line buffering
-                buffering=1) as tmp:
-            cli_logger.verbose("Command stdout is redirected to {}",
-                               cf.bold(tmp.name))
+    tmpfile_path = os.path.join(
+        tempfile.gettempdir(), f"ray-up-{cmd[0]}-{time.time()}.txt"
+    )
+    with open(
+            tmpfile_path,
+            mode="w",
+            # line buffering
+            buffering=1) as tmp:
+        cli_logger.verbose("Command stdout is redirected to {}",
+                           cf.bold(tmp.name))
 
-            return _run_and_process_output(
-                cmd,
-                process_runner=process_runner,
-                stdout_file=tmp,
-                stderr_file=tmp,
-                use_login_shells=use_login_shells)
+        return _run_and_process_output(
+            cmd,
+            process_runner=process_runner,
+            stdout_file=tmp,
+            stderr_file=tmp,
+            use_login_shells=use_login_shells)
 
 
 def handle_ssh_fails(e, first_conn_refused_time, retry_interval):

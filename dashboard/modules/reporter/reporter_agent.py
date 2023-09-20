@@ -31,7 +31,7 @@ IN_KUBERNETES_POD = "KUBERNETES_SERVICE_HOST" in os.environ
 
 try:
     import gpustat.core as gpustat
-except (ModuleNotFoundError, ImportError):
+except ImportError:
     gpustat = None
     if log_once("gpustat_import_warning"):
         warnings.warn("`gpustat` package is not installed. GPU monitoring is "
@@ -45,15 +45,9 @@ def recursive_asdict(o):
         return recursive_asdict(o._asdict())
 
     if isinstance(o, (tuple, list)):
-        L = []
-        for k in o:
-            L.append(recursive_asdict(k))
-        return L
-
+        return [recursive_asdict(k) for k in o]
     if isinstance(o, dict):
-        D = {k: recursive_asdict(v) for k, v in o.items()}
-        return D
-
+        return {k: recursive_asdict(v) for k, v in o.items()}
     return o
 
 
@@ -186,10 +180,7 @@ class ReporterAgent(dashboard_utils.DashboardAgentModule,
 
     @staticmethod
     def _get_cpu_percent():
-        if IN_KUBERNETES_POD:
-            return k8s_utils.cpu_percent()
-        else:
-            return psutil.cpu_percent()
+        return k8s_utils.cpu_percent() if IN_KUBERNETES_POD else psutil.cpu_percent()
 
     @staticmethod
     def _get_gpu_usage():
@@ -258,21 +249,20 @@ class ReporterAgent(dashboard_utils.DashboardAgentModule,
         raylet_proc = self._get_raylet_proc()
         if raylet_proc is None:
             return []
-        else:
-            workers = set(raylet_proc.children())
-            self._workers.intersection_update(workers)
-            self._workers.update(workers)
-            self._workers.discard(psutil.Process())
-            return [
-                w.as_dict(attrs=[
-                    "pid",
-                    "create_time",
-                    "cpu_percent",
-                    "cpu_times",
-                    "cmdline",
-                    "memory_info",
-                ]) for w in self._workers if w.status() != psutil.STATUS_ZOMBIE
-            ]
+        workers = set(raylet_proc.children())
+        self._workers.intersection_update(workers)
+        self._workers.update(workers)
+        self._workers.discard(psutil.Process())
+        return [
+            w.as_dict(attrs=[
+                "pid",
+                "create_time",
+                "cpu_percent",
+                "cpu_times",
+                "cmdline",
+                "memory_info",
+            ]) for w in self._workers if w.status() != psutil.STATUS_ZOMBIE
+        ]
 
     @staticmethod
     def _get_raylet_proc():
@@ -352,13 +342,14 @@ class ReporterAgent(dashboard_utils.DashboardAgentModule,
         # Only report cluster stats on head node
         if "autoscaler_report" in cluster_stats and self._is_head_node:
             active_nodes = cluster_stats["autoscaler_report"]["active_nodes"]
-            for node_type, active_node_count in active_nodes.items():
-                records_reported.append(
-                    Record(
-                        gauge=METRICS_GAUGES["cluster_active_nodes"],
-                        value=active_node_count,
-                        tags={"node_type": node_type}))
-
+            records_reported.extend(
+                Record(
+                    gauge=METRICS_GAUGES["cluster_active_nodes"],
+                    value=active_node_count,
+                    tags={"node_type": node_type},
+                )
+                for node_type, active_node_count in active_nodes.items()
+            )
             failed_nodes = cluster_stats["autoscaler_report"]["failed_nodes"]
             failed_nodes_dict = {}
             for node_ip, node_type in failed_nodes:
@@ -367,13 +358,14 @@ class ReporterAgent(dashboard_utils.DashboardAgentModule,
                 else:
                     failed_nodes_dict[node_type] = 1
 
-            for node_type, failed_node_count in failed_nodes_dict.items():
-                records_reported.append(
-                    Record(
-                        gauge=METRICS_GAUGES["cluster_failed_nodes"],
-                        value=failed_node_count,
-                        tags={"node_type": node_type}))
-
+            records_reported.extend(
+                Record(
+                    gauge=METRICS_GAUGES["cluster_failed_nodes"],
+                    value=failed_node_count,
+                    tags={"node_type": node_type},
+                )
+                for node_type, failed_node_count in failed_nodes_dict.items()
+            )
             pending_nodes = cluster_stats["autoscaler_report"]["pending_nodes"]
             pending_nodes_dict = {}
             for node_ip, node_type, status_message in pending_nodes:
@@ -382,13 +374,14 @@ class ReporterAgent(dashboard_utils.DashboardAgentModule,
                 else:
                     pending_nodes_dict[node_type] = 1
 
-            for node_type, pending_node_count in pending_nodes_dict.items():
-                records_reported.append(
-                    Record(
-                        gauge=METRICS_GAUGES["cluster_pending_nodes"],
-                        value=pending_node_count,
-                        tags={"node_type": node_type}))
-
+            records_reported.extend(
+                Record(
+                    gauge=METRICS_GAUGES["cluster_pending_nodes"],
+                    value=pending_node_count,
+                    tags={"node_type": node_type},
+                )
+                for node_type, pending_node_count in pending_nodes_dict.items()
+            )
         # -- CPU per node --
         cpu_usage = float(stats["cpu"])
         cpu_record = Record(
@@ -419,9 +412,7 @@ class ReporterAgent(dashboard_utils.DashboardAgentModule,
 
         # -- GPU per node --
         gpus = stats["gpus"]
-        gpus_available = len(gpus)
-
-        if gpus_available:
+        if gpus_available := len(gpus):
             gpus_utilization, gram_used, gram_total = 0, 0, 0
             for gpu in gpus:
                 gpus_utilization += gpu["utilization_gpu"]
@@ -492,8 +483,7 @@ class ReporterAgent(dashboard_utils.DashboardAgentModule,
             value=network_speed_stats[1],
             tags={"ip": ip})
 
-        raylet_stats = stats["raylet"]
-        if raylet_stats:
+        if raylet_stats := stats["raylet"]:
             raylet_pid = str(raylet_stats["pid"])
             # -- raylet CPU --
             raylet_cpu_usage = float(raylet_stats["cpu_percent"]) * 100

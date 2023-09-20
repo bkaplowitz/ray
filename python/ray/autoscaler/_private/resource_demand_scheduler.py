@@ -157,13 +157,13 @@ class ResourceDemandScheduler:
         node_resources, node_type_counts = self.calculate_node_resources(
             nodes, launching_nodes, unused_resources_by_ip)
 
-        logger.debug("Cluster resources: {}".format(node_resources))
-        logger.debug("Node counts: {}".format(node_type_counts))
+        logger.debug(f"Cluster resources: {node_resources}")
+        logger.debug(f"Node counts: {node_type_counts}")
         # Step 2: add nodes to add to satisfy min_workers for each type
         (node_resources,
          node_type_counts,
          adjusted_min_workers) = \
-            _add_min_workers_nodes(
+                _add_min_workers_nodes(
                 node_resources, node_type_counts, self.node_types,
                 self.max_workers, self.head_node_type, ensure_min_cluster_size)
 
@@ -171,14 +171,14 @@ class ResourceDemandScheduler:
         # groups that should be strictly spread.
         logger.debug(f"Placement group demands: {pending_placement_groups}")
         placement_group_demand_vector, strict_spreads = \
-            placement_groups_to_resource_demands(pending_placement_groups)
+                placement_groups_to_resource_demands(pending_placement_groups)
         # Place placement groups demand vector at the beginning of the resource
         # demands vector to make it consistent (results in the same types of
         # nodes to add) with pg_demands_nodes_max_launch_limit calculated later
         resource_demands = placement_group_demand_vector + resource_demands
 
         if self.is_legacy_yaml() and \
-                not self.node_types[NODE_TYPE_LEGACY_WORKER]["resources"]:
+                    not self.node_types[NODE_TYPE_LEGACY_WORKER]["resources"]:
             # Need to launch worker nodes to later infer their
             # resources.
             # We add request_resources() demands here to make sure we launch
@@ -193,7 +193,7 @@ class ResourceDemandScheduler:
                 resource_demands + request_resources_demands)
 
         spread_pg_nodes_to_add, node_resources, node_type_counts = \
-            self.reserve_and_allocate_spread(
+                self.reserve_and_allocate_spread(
                 strict_spreads, node_resources, node_type_counts)
 
         # Calculate the nodes to add for bypassing max launch limit for
@@ -215,8 +215,8 @@ class ResourceDemandScheduler:
         # groups
         unfulfilled, _ = get_bin_pack_residual(node_resources,
                                                resource_demands)
-        logger.debug("Resource demands: {}".format(resource_demands))
-        logger.debug("Unfulfilled demands: {}".format(unfulfilled))
+        logger.debug(f"Resource demands: {resource_demands}")
+        logger.debug(f"Unfulfilled demands: {unfulfilled}")
         nodes_to_add_based_on_demand = get_nodes_for(
             self.node_types, node_type_counts, self.head_node_type, max_to_add,
             unfulfilled)
@@ -238,7 +238,7 @@ class ResourceDemandScheduler:
             launching_nodes, adjusted_min_workers,
             placement_groups_nodes_max_limit)
 
-        logger.debug("Node requests: {}".format(total_nodes_to_add))
+        logger.debug(f"Node requests: {total_nodes_to_add}")
         return total_nodes_to_add
 
     def _legacy_worker_node_to_launch(
@@ -298,8 +298,7 @@ class ResourceDemandScheduler:
                 # node type
                 continue
             ip = self.provider.internal_ip(node_id)
-            runtime_resources = max_resources_by_ip.get(ip)
-            if runtime_resources:
+            if runtime_resources := max_resources_by_ip.get(ip):
                 runtime_resources = copy.deepcopy(runtime_resources)
                 resources = self.node_types[node_type].get("resources", {})
                 for key in ["CPU", "GPU", "memory", "object_store_memory"]:
@@ -551,9 +550,9 @@ class ResourceDemandScheduler:
 
         out = "Worker node types:"
         for node_type, count in node_type_counts.items():
-            out += "\n - {}: {}".format(node_type, count)
+            out += f"\n - {node_type}: {count}"
             if pending_nodes.get(node_type):
-                out += " ({} pending)".format(pending_nodes[node_type])
+                out += f" ({pending_nodes[node_type]} pending)"
 
         return out
 
@@ -743,10 +742,8 @@ def _utilization_score(node_resources: ResourceDict,
     is_gpu_node = "GPU" in node_resources and node_resources["GPU"] > 0
     any_gpu_task = any("GPU" in r for r in resources)
 
-    # Avoid launching GPU nodes if there aren't any GPU tasks at all. Note that
-    # if there *is* a GPU task, then CPU tasks can be scheduled as well.
-    if AUTOSCALER_CONSERVE_GPU_NODES:
-        if is_gpu_node and not any_gpu_task:
+    if is_gpu_node and not any_gpu_task:
+        if AUTOSCALER_CONSERVE_GPU_NODES:
             return None
 
     fittable = []
@@ -825,10 +822,7 @@ def get_bin_pack_residual(node_resources: List[ResourceDict],
 
 
 def _fits(node: ResourceDict, resources: ResourceDict) -> bool:
-    for k, v in resources.items():
-        if v > node.get(k, 0.0):
-            return False
-    return True
+    return all(v <= node.get(k, 0.0) for k, v in resources.items())
 
 
 def _inplace_subtract(node: ResourceDict, resources: ResourceDict) -> None:
@@ -870,8 +864,10 @@ def placement_groups_to_resource_demands(
         shapes = [
             dict(bundle.unit_resources) for bundle in placement_group.bundles
         ]
-        if (placement_group.strategy == PlacementStrategy.PACK
-                or placement_group.strategy == PlacementStrategy.SPREAD):
+        if placement_group.strategy in [
+            PlacementStrategy.PACK,
+            PlacementStrategy.SPREAD,
+        ]:
             resource_demand_vector.extend(shapes)
         elif placement_group.strategy == PlacementStrategy.STRICT_PACK:
             combined = collections.defaultdict(float)

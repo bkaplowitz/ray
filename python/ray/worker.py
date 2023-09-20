@@ -76,8 +76,9 @@ logger = logging.getLogger(__name__)
 
 # Visible for testing.
 def _unhandled_error_handler(e: Exception):
-    logger.error("Unhandled error (suppress with "
-                 "RAY_IGNORE_UNHANDLED_ERRORS=1): {}".format(e))
+    logger.error(
+        f"Unhandled error (suppress with RAY_IGNORE_UNHANDLED_ERRORS=1): {e}"
+    )
 
 
 class Worker:
@@ -739,11 +740,9 @@ def init(
             arguments is passed in.
     """
 
-    # If available, use RAY_ADDRESS to override if the address was left
-    # unspecified, or set to "auto" in the call to init
-    address_env_var = os.environ.get(
-        ray_constants.RAY_ADDRESS_ENVIRONMENT_VARIABLE)
-    if address_env_var:
+    if address_env_var := os.environ.get(
+        ray_constants.RAY_ADDRESS_ENVIRONMENT_VARIABLE
+    ):
         if address is None or address == "auto":
             address = address_env_var
             logger.info(
@@ -786,8 +785,7 @@ def init(
         if soft < hard:
             # https://github.com/ray-project/ray/issues/12059
             soft = max(soft, min(hard, 65536))
-            logger.debug("Automatically increasing RLIMIT_NOFILE to max "
-                         "value of {}".format(hard))
+            logger.debug(f"Automatically increasing RLIMIT_NOFILE to max value of {hard}")
             try:
                 resource.setrlimit(resource.RLIMIT_NOFILE, (soft, hard))
             except ValueError:
@@ -795,14 +793,10 @@ def init(
         soft, _ = resource.getrlimit(resource.RLIMIT_NOFILE)
         if soft < 4096:
             logger.warning(
-                "File descriptor limit {} is too low for production "
-                "servers and may result in connection errors. "
-                "At least 8192 is recommended. --- "
-                "Fix with 'ulimit -n 8192'".format(soft))
+                f"File descriptor limit {soft} is too low for production servers and may result in connection errors. At least 8192 is recommended. --- Fix with 'ulimit -n 8192'"
+            )
     except ImportError:
         logger.debug("Could not import resource module (on Windows)")
-        pass
-
     if runtime_env:
         if job_config is None:
             job_config = ray.job_config.JobConfig()
@@ -825,22 +819,17 @@ def init(
         logger.info(
             f"Connecting to existing Ray cluster at address: {redis_address}")
 
-    if local_mode:
-        driver_mode = LOCAL_MODE
-    else:
-        driver_mode = SCRIPT_MODE
-
+    driver_mode = LOCAL_MODE if local_mode else SCRIPT_MODE
     if global_worker.connected:
-        if ignore_reinit_error:
-            logger.info(
-                "Calling ray.init() again after it has already been called.")
-            return
-        else:
+        if not ignore_reinit_error:
             raise RuntimeError("Maybe you called ray.init twice by accident? "
                                "This error can be suppressed by passing in "
                                "'ignore_reinit_error=True' or by calling "
                                "'ray.shutdown()' prior to 'ray.init()'.")
 
+        logger.info(
+            "Calling ray.init() again after it has already been called.")
+        return
     _system_config = _system_config or {}
     if not isinstance(_system_config, dict):
         raise TypeError("The _system_config must be a dict.")
@@ -1110,20 +1099,17 @@ def time_string() -> str:
         delta -= 60
     output = ""
     if hours:
-        output += "{}h".format(hours)
+        output += f"{hours}h"
     if minutes:
-        output += "{}m".format(minutes)
-    output += "{}s".format(int(delta))
+        output += f"{minutes}m"
+    output += f"{int(delta)}s"
     return output
 
 
 def print_worker_logs(data: Dict[str, str], print_file: Any):
     def prefix_for(data: Dict[str, str]) -> str:
         """The PID prefix for this log line."""
-        if data["pid"] in ["autoscaler", "raylet"]:
-            return ""
-        else:
-            return "pid="
+        return "" if data["pid"] in ["autoscaler", "raylet"] else "pid="
 
     def color_for(data: Dict[str, str]) -> str:
         """The color for this log line."""
@@ -1206,11 +1192,7 @@ def listen_error_messages_raylet(worker, threads_stopped):
                 continue
 
             error_message = error_data.error_message
-            if (error_data.type == ray_constants.TASK_PUSH_ERROR):
-                # TODO(ekl) remove task push errors entirely now that we have
-                # the separate unhandled exception handler.
-                pass
-            else:
+            if error_data.type != ray_constants.TASK_PUSH_ERROR:
                 logger.warning(error_message)
     except (OSError, redis.exceptions.ConnectionError) as e:
         logger.error(f"listen_error_messages_raylet: {e}")

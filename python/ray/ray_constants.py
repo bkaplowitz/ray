@@ -21,9 +21,7 @@ def env_integer(key, default):
 
 
 def env_bool(key, default):
-    if key in os.environ:
-        return True if os.environ[key].lower() == "true" else False
-    return default
+    return os.environ[key].lower() == "true" if key in os.environ else default
 
 
 ID_SIZE = 28
@@ -104,17 +102,13 @@ def to_memory_units(memory_bytes, round_up):
     value = memory_bytes / MEMORY_RESOURCE_UNIT_BYTES
     if value < 1:
         raise ValueError(
-            "The minimum amount of memory that can be requested is {} bytes, "
-            "however {} bytes was asked.".format(MEMORY_RESOURCE_UNIT_BYTES,
-                                                 memory_bytes))
+            f"The minimum amount of memory that can be requested is {MEMORY_RESOURCE_UNIT_BYTES} bytes, however {memory_bytes} bytes was asked."
+        )
     if isinstance(value, float) and not value.is_integer():
         # TODO(ekl) Ray currently does not support fractional resources when
         # the quantity is greater than one. We should fix memory resources to
         # be allocated in units of bytes and not 100MB.
-        if round_up:
-            value = int(math.ceil(value))
-        else:
-            value = int(math.floor(value))
+        value = int(math.ceil(value)) if round_up else int(math.floor(value))
     return int(value)
 
 

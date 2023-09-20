@@ -82,10 +82,7 @@ class AcsClient:
         if instance_ids is not None:
             request.set_InstanceIds(instance_ids)
         response = self._send_request(request)
-        if response is not None:
-            instance_list = response.get("Instances").get("Instance")
-            return instance_list
-        return None
+        return None if response is None else response.get("Instances").get("Instance")
 
     def create_instance(
             self,
@@ -194,8 +191,7 @@ class AcsClient:
 
         response = self._send_request(request)
         if response is not None:
-            instance_ids = response.get("InstanceIdSets").get("InstanceIdSet")
-            return instance_ids
+            return response.get("InstanceIdSets").get("InstanceIdSet")
         logging.error("instance created failed.")
         return None
 
@@ -209,10 +205,7 @@ class AcsClient:
         request = CreateSecurityGroupRequest()
         request.set_VpcId(vpc_id)
         response = self._send_request(request)
-        if response is not None:
-            security_group_id = response.get("SecurityGroupId")
-            return security_group_id
-        return None
+        return response.get("SecurityGroupId") if response is not None else None
 
     def describe_security_groups(self, vpc_id=None, tags=None):
         """ Query basic information of security groups.
@@ -228,9 +221,7 @@ class AcsClient:
             request.set_Tags(tags)
         response = self._send_request(request)
         if response is not None:
-            security_groups = response.get("SecurityGroups").get(
-                "SecurityGroup")
-            return security_groups
+            return response.get("SecurityGroups").get("SecurityGroup")
         logging.error("describe security group failed.")
         return None
 
@@ -279,9 +270,7 @@ class AcsClient:
         """
         request = CreateVpcRequest()
         response = self._send_request(request)
-        if response is not None:
-            return response.get("VpcId")
-        return None
+        return response.get("VpcId") if response is not None else None
 
     def describe_vpcs(self):
         """ Queries one or more VPCs in a region.
@@ -290,9 +279,7 @@ class AcsClient:
         """
         request = DescribeVpcsRequest()
         response = self._send_request(request)
-        if response is not None:
-            return response.get("Vpcs").get("Vpc")
-        return None
+        return response.get("Vpcs").get("Vpc") if response is not None else None
 
     def tag_resource(self, resource_ids, tags, resource_type="instance"):
         """ Create and bind tags to specified ECS resources.
@@ -437,10 +424,7 @@ class AcsClient:
         if key_pair_name is not None:
             request.set_KeyPairName(key_pair_name)
         response = self._send_request(request)
-        if response is not None:
-            return response.get("KeyPairs").get("KeyPair")
-        else:
-            return None
+        return None if response is None else response.get("KeyPairs").get("KeyPair")
 
     def describe_v_switches(self, vpc_id=None):
         """ Queries one or more VSwitches.
@@ -454,17 +438,15 @@ class AcsClient:
         response = self._send_request(request)
         if response is not None:
             return response.get("VSwitches").get("VSwitch")
-        else:
-            logging.error("Describe VSwitches Failed.")
-            return None
+        logging.error("Describe VSwitches Failed.")
+        return None
 
     def _send_request(self, request):
         """send open api request"""
         request.set_accept_format("json")
         try:
             response_str = self.cli.do_action_with_exception(request)
-            response_detail = json.loads(response_str)
-            return response_detail
+            return json.loads(response_str)
         except (ClientException, ServerException) as e:
             logging.error(request.get_action_name())
             logging.error(e)

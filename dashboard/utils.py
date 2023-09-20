@@ -201,9 +201,7 @@ def get_all_modules(module_type):
     logger.info(f"Get all modules by type: {module_type.__name__}")
     import ray.new_dashboard.modules
 
-    for module_loader, name, ispkg in pkgutil.walk_packages(
-            ray.new_dashboard.modules.__path__,
-            ray.new_dashboard.modules.__name__ + "."):
+    for module_loader, name, ispkg in pkgutil.walk_packages(ray.new_dashboard.modules.__path__, f"{ray.new_dashboard.modules.__name__}."):
         importlib.import_module(name)
     return [
         m for m in module_type.__subclasses__()
@@ -294,10 +292,7 @@ def message_to_dict(message, decode_keys=None, **kwargs):
                         new_list.append(i)
                 d[k] = new_list
             else:
-                if k in decode_keys:
-                    d[k] = binary_to_hex(b64decode(v))
-                else:
-                    d[k] = v
+                d[k] = binary_to_hex(b64decode(v)) if k in decode_keys else v
         return d
 
     if decode_keys:
@@ -323,61 +318,57 @@ def aiohttp_cache(
     cache = collections.OrderedDict()
 
     def _wrapper(handler):
-        if enable:
+        if not enable:
+            return handler
 
-            @functools.wraps(handler)
-            async def _cache_handler(*args) -> aiohttp.web.Response:
-                # Make the route handler as a bound method.
-                # The args may be:
-                #   * (Request, )
-                #   * (self, Request)
-                req = args[-1]
-                # Make key.
-                if req.method in _AIOHTTP_CACHE_NOBODY_METHODS:
-                    key = req.path_qs
-                else:
-                    key = (req.path_qs, await req.read())
-                # Query cache.
-                value = cache.get(key)
-                if value is not None:
-                    cache.move_to_end(key)
-                    if (not value.task.done()
-                            or value.expiration >= time.time()):
-                        # Update task not done or the data is not expired.
-                        return aiohttp.web.Response(**value.data)
-
-                def _update_cache(task):
-                    try:
-                        response = task.result()
-                    except Exception:
-                        response = rest_response(
-                            success=False, message=traceback.format_exc())
-                    data = {
-                        "status": response.status,
-                        "headers": dict(response.headers),
-                        "body": response.body,
-                    }
-                    cache[key] = _AiohttpCacheValue(data,
-                                                    time.time() + ttl_seconds,
-                                                    task)
-                    cache.move_to_end(key)
-                    if len(cache) > maxsize:
-                        cache.popitem(last=False)
-                    return response
-
-                task = create_task(handler(*args))
-                task.add_done_callback(_update_cache)
-                if value is None:
-                    return await task
-                else:
+        @functools.wraps(handler)
+        async def _cache_handler(*args) -> aiohttp.web.Response:
+            # Make the route handler as a bound method.
+            # The args may be:
+            #   * (Request, )
+            #   * (self, Request)
+            req = args[-1]
+            # Make key.
+            if req.method in _AIOHTTP_CACHE_NOBODY_METHODS:
+                key = req.path_qs
+            else:
+                key = (req.path_qs, await req.read())
+            # Query cache.
+            value = cache.get(key)
+            if value is not None:
+                cache.move_to_end(key)
+                if (not value.task.done()
+                        or value.expiration >= time.time()):
+                    # Update task not done or the data is not expired.
                     return aiohttp.web.Response(**value.data)
 
-            suffix = f"[cache ttl={ttl_seconds}, max_size={maxsize}]"
-            _cache_handler.__name__ += suffix
-            _cache_handler.__qualname__ += suffix
-            return _cache_handler
-        else:
-            return handler
+            def _update_cache(task):
+                try:
+                    response = task.result()
+                except Exception:
+                    response = rest_response(
+                        success=False, message=traceback.format_exc())
+                data = {
+                    "status": response.status,
+                    "headers": dict(response.headers),
+                    "body": response.body,
+                }
+                cache[key] = _AiohttpCacheValue(data,
+                                                time.time() + ttl_seconds,
+                                                task)
+                cache.move_to_end(key)
+                if len(cache) > maxsize:
+                    cache.popitem(last=False)
+                return response
+
+            task = create_task(handler(*args))
+            task.add_done_callback(_update_cache)
+            return await task if value is None else aiohttp.web.Response(**value.data)
+
+        suffix = f"[cache ttl={ttl_seconds}, max_size={maxsize}]"
+        _cache_handler.__name__ += suffix
+        _cache_handler.__qualname__ += suffix
+        return _cache_handler
 
     if inspect.iscoroutinefunction(ttl_seconds):
         target_func = ttl_seconds
@@ -487,7 +478,7 @@ def make_immutable(value, strict=True):
         return ImmutableList(value)
     if strict:
         if value_type not in _json_compatible_types:
-            raise TypeError("Type {} can't be immutable.".format(value_type))
+            raise TypeError(f"Type {value_type} can't be immutable.")
     return value
 
 
@@ -542,7 +533,7 @@ class ImmutableList(Immutable, Sequence):
         return len(self._list)
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, list.__repr__(self._list))
+        return f"{self.__class__.__name__}({list.__repr__(self._list)})"
 
 
 class ImmutableDict(Immutable, Mapping):
@@ -602,7 +593,7 @@ class ImmutableDict(Immutable, Mapping):
         return iter(self._proxy)
 
     def __repr__(self):
-        return "%s(%s)" % (self.__class__.__name__, dict.__repr__(self._dict))
+        return f"{self.__class__.__name__}({dict.__repr__(self._dict)})"
 
 
 class Dict(ImmutableDict, MutableMapping):
@@ -656,7 +647,7 @@ for immutable_type in Immutable.__subclasses__():
 
 async def get_aioredis_client(redis_address, redis_password,
                               retry_interval_seconds, retry_times):
-    for x in range(retry_times):
+    for _ in range(retry_times):
         try:
             return await aioredis.create_redis_pool(
                 address=redis_address, password=redis_password)

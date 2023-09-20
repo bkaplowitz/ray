@@ -163,24 +163,22 @@ if __name__ == "__main__":
         required=False,
         type=str,
         default=dashboard_consts.DASHBOARD_LOG_FILENAME,
-        help="Specify the name of log file, "
-        "log to stdout if set empty, default is \"{}\"".format(
-            dashboard_consts.DASHBOARD_LOG_FILENAME))
+        help=f'Specify the name of log file, log to stdout if set empty, default is \"{dashboard_consts.DASHBOARD_LOG_FILENAME}\"',
+    )
     parser.add_argument(
         "--logging-rotate-bytes",
         required=False,
         type=int,
         default=ray_constants.LOGGING_ROTATE_BYTES,
-        help="Specify the max bytes for rotating "
-        "log file, default is {} bytes.".format(
-            ray_constants.LOGGING_ROTATE_BYTES))
+        help=f"Specify the max bytes for rotating log file, default is {ray_constants.LOGGING_ROTATE_BYTES} bytes.",
+    )
     parser.add_argument(
         "--logging-rotate-backup-count",
         required=False,
         type=int,
         default=ray_constants.LOGGING_ROTATE_BACKUP_COUNT,
-        help="Specify the backup count of rotated log file, default is {}.".
-        format(ray_constants.LOGGING_ROTATE_BACKUP_COUNT))
+        help=f"Specify the backup count of rotated log file, default is {ray_constants.LOGGING_ROTATE_BACKUP_COUNT}.",
+    )
     parser.add_argument(
         "--log-dir",
         required=True,

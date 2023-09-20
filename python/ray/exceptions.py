@@ -34,9 +34,9 @@ class CrossLanguageError(RayError):
     """Raised from another language."""
 
     def __init__(self, ray_exception):
-        super().__init__("An exception raised from {}:\n{}".format(
-            Language.Name(ray_exception.language),
-            ray_exception.formatted_exception_string))
+        super().__init__(
+            f"An exception raised from {Language.Name(ray_exception.language)}:\n{ray_exception.formatted_exception_string}"
+        )
 
 
 class TaskCancelledError(RayError):
@@ -53,7 +53,7 @@ class TaskCancelledError(RayError):
     def __str__(self):
         if self.task_id is None:
             return "This task or its dependency was cancelled by"
-        return "Task: " + str(self.task_id) + " was cancelled"
+        return f"Task: {str(self.task_id)} was cancelled"
 
 
 class RayTaskError(RayError):
@@ -81,10 +81,7 @@ class RayTaskError(RayError):
         # a tuple with the type and the value of self.args.
         # https://stackoverflow.com/a/49715949/2213289
         self.args = (function_name, traceback_str, cause, proctitle, pid, ip)
-        if proctitle:
-            self.proctitle = proctitle
-        else:
-            self.proctitle = setproctitle.getproctitle()
+        self.proctitle = proctitle if proctitle else setproctitle.getproctitle()
         self.pid = pid or os.getpid()
         self.ip = ip or ray.util.get_node_ip_address()
         self.function_name = function_name
@@ -151,10 +148,7 @@ class RayTaskError(RayError):
                                   f"{self.proctitle}"
                                   f"{colorama.Fore.RESET} "
                                   f"(pid={self.pid}, ip={self.ip}")
-                if self.actor_repr:
-                    traceback_line += f", repr={self.actor_repr})"
-                else:
-                    traceback_line += ")"
+                traceback_line += f", repr={self.actor_repr})" if self.actor_repr else ")"
                 code_from_internal_file = False
                 out.append(traceback_line)
             elif line.startswith("  File ") and ("ray/worker.py" in line
@@ -227,9 +221,7 @@ class RayActorError(RayError):
         return self.creation_task_error is not None
 
     def get_creation_task_error(self):
-        if self.creation_task_error is not None:
-            return self.creation_task_error
-        return None
+        return None if self.creation_task_error is None else self.creation_task_error
 
     def __str__(self):
         if self.creation_task_error:

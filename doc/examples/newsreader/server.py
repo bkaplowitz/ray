@@ -69,17 +69,14 @@ CORS(app)
 def dispatcher():
     req = request.get_json()
     method_name = req["method_name"]
+    if not hasattr(dispatcher.server, method_name):
+        return jsonify({"error": f"method_name '{method_name}' not found"})
+    method = getattr(dispatcher.server, method_name)
     method_args = req["method_args"]
-    if hasattr(dispatcher.server, method_name):
-        method = getattr(dispatcher.server, method_name)
-        # Doing a blocking ray.get right after submitting the task
-        # might be bad for performance if the task is expensive.
-        result = ray.get(method.remote(*method_args))
-        return jsonify(result)
-    else:
-        return jsonify({
-            "error": "method_name '" + method_name + "' not found"
-        })
+    # Doing a blocking ray.get right after submitting the task
+    # might be bad for performance if the task is expensive.
+    result = ray.get(method.remote(*method_args))
+    return jsonify(result)
 
 
 if __name__ == "__main__":

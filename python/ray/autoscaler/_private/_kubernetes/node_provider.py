@@ -34,7 +34,7 @@ def to_label_selector(tags):
     for k, v in tags.items():
         if label_selector != "":
             label_selector += ","
-        label_selector += "{}={}".format(k, v)
+        label_selector += f"{k}={v}"
     return label_selector
 
 
@@ -99,13 +99,12 @@ class KubernetesNodeProvider(NodeProvider):
                 self._set_node_tags(node_ids, tags)
                 return
             except ApiException as e:
-                if e.status == 409:
-                    logger.info(log_prefix + "Caught a 409 error while setting"
-                                " node tags. Retrying...")
-                    time.sleep(DELAY_BEFORE_TAG_RETRY)
-                    continue
-                else:
+                if e.status != 409:
                     raise
+                logger.info(
+                    f"{log_prefix}Caught a 409 error while setting node tags. Retrying..."
+                )
+                time.sleep(DELAY_BEFORE_TAG_RETRY)
         # One more try
         self._set_node_tags(node_ids, tags)
 
@@ -133,8 +132,7 @@ class KubernetesNodeProvider(NodeProvider):
             head_selector = head_service_selector(self.cluster_name)
             pod_spec["metadata"]["labels"].update(head_selector)
 
-        logger.info(log_prefix + "calling create_namespaced_pod "
-                    "(count={}).".format(count))
+        logger.info(f"{log_prefix}calling create_namespaced_pod (count={count}).")
         new_nodes = []
         for _ in range(count):
             pod = core_api().create_namespaced_pod(self.namespace, pod_spec)
@@ -142,8 +140,7 @@ class KubernetesNodeProvider(NodeProvider):
 
         new_svcs = []
         if service_spec is not None:
-            logger.info(log_prefix + "calling create_namespaced_service "
-                        "(count={}).".format(count))
+            logger.info(f"{log_prefix}calling create_namespaced_service (count={count}).")
 
             for new_node in new_nodes:
 
@@ -156,8 +153,7 @@ class KubernetesNodeProvider(NodeProvider):
                 new_svcs.append(svc)
 
         if ingress_spec is not None:
-            logger.info(log_prefix + "calling create_namespaced_ingress "
-                        "(count={}).".format(count))
+            logger.info(f"{log_prefix}calling create_namespaced_ingress (count={count}).")
             for new_svc in new_svcs:
                 metadata = ingress_spec.get("metadata", {})
                 metadata["name"] = new_svc.metadata.name
@@ -168,13 +164,14 @@ class KubernetesNodeProvider(NodeProvider):
                     self.namespace, ingress_spec)
 
     def terminate_node(self, node_id):
-        logger.info(log_prefix + "calling delete_namespaced_pod")
+        logger.info(f"{log_prefix}calling delete_namespaced_pod")
         try:
             core_api().delete_namespaced_pod(node_id, self.namespace)
         except ApiException as e:
             if e.status == 404:
-                logger.warning(log_prefix + f"Tried to delete pod {node_id},"
-                               " but the pod was not found (404).")
+                logger.warning(
+                    f"{log_prefix}Tried to delete pod {node_id}, but the pod was not found (404)."
+                )
             else:
                 raise
         try:

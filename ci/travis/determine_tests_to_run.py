@@ -53,12 +53,9 @@ def get_commit_range():
         with open(os.environ["GITHUB_EVENT_PATH"], "rb") as f:
             event = json.loads(f.read())
         base = event["pull_request"]["base"]["sha"]
-        commit_range = "{}...{}".format(base, event.get("after", ""))
+        commit_range = f'{base}...{event.get("after", "")}'
     elif os.environ.get("BUILDKITE"):
-        commit_range = "origin/{}...{}".format(
-            os.environ["BUILDKITE_PULL_REQUEST_BASE_BRANCH"],
-            os.environ["BUILDKITE_COMMIT"],
-        )
+        commit_range = f'origin/{os.environ["BUILDKITE_PULL_REQUEST_BASE_BRANCH"]}...{os.environ["BUILDKITE_COMMIT"]}'
 
     assert commit_range is not None
     return commit_range
@@ -225,29 +222,27 @@ if __name__ == "__main__":
         RAY_CI_ONLY_RLLIB_AFFECTED = 1
 
     # Log the modified environment variables visible in console.
-    output_string = " ".join([
-        "RAY_CI_TUNE_AFFECTED={}".format(RAY_CI_TUNE_AFFECTED),
-        "RAY_CI_SGD_AFFECTED={}".format(RAY_CI_SGD_AFFECTED),
-        "RAY_CI_ONLY_RLLIB_AFFECTED={}".format(RAY_CI_ONLY_RLLIB_AFFECTED),
-        "RAY_CI_RLLIB_AFFECTED={}".format(RAY_CI_RLLIB_AFFECTED),
-        "RAY_CI_RLLIB_FULL_AFFECTED={}".format(RAY_CI_RLLIB_FULL_AFFECTED),
-        "RAY_CI_SERVE_AFFECTED={}".format(RAY_CI_SERVE_AFFECTED),
-        "RAY_CI_DASHBOARD_AFFECTED={}".format(RAY_CI_DASHBOARD_AFFECTED),
-        "RAY_CI_DOC_AFFECTED={}".format(RAY_CI_DOC_AFFECTED),
-        "RAY_CI_JAVA_AFFECTED={}".format(RAY_CI_JAVA_AFFECTED),
-        "RAY_CI_PYTHON_AFFECTED={}".format(RAY_CI_PYTHON_AFFECTED),
-        "RAY_CI_LINUX_WHEELS_AFFECTED={}".format(RAY_CI_LINUX_WHEELS_AFFECTED),
-        "RAY_CI_MACOS_WHEELS_AFFECTED={}".format(RAY_CI_MACOS_WHEELS_AFFECTED),
-        "RAY_CI_STREAMING_CPP_AFFECTED={}".format(
-            RAY_CI_STREAMING_CPP_AFFECTED),
-        "RAY_CI_STREAMING_PYTHON_AFFECTED={}".format(
-            RAY_CI_STREAMING_PYTHON_AFFECTED),
-        "RAY_CI_STREAMING_JAVA_AFFECTED={}".format(
-            RAY_CI_STREAMING_JAVA_AFFECTED),
-        "RAY_CI_DOCKER_AFFECTED={}".format(RAY_CI_DOCKER_AFFECTED),
-        "RAY_CI_PYTHON_DEPENDENCIES_AFFECTED={}".format(
-            RAY_CI_PYTHON_DEPENDENCIES_AFFECTED),
-    ])
+    output_string = " ".join(
+        [
+            f"RAY_CI_TUNE_AFFECTED={RAY_CI_TUNE_AFFECTED}",
+            f"RAY_CI_SGD_AFFECTED={RAY_CI_SGD_AFFECTED}",
+            f"RAY_CI_ONLY_RLLIB_AFFECTED={RAY_CI_ONLY_RLLIB_AFFECTED}",
+            f"RAY_CI_RLLIB_AFFECTED={RAY_CI_RLLIB_AFFECTED}",
+            f"RAY_CI_RLLIB_FULL_AFFECTED={RAY_CI_RLLIB_FULL_AFFECTED}",
+            f"RAY_CI_SERVE_AFFECTED={RAY_CI_SERVE_AFFECTED}",
+            f"RAY_CI_DASHBOARD_AFFECTED={RAY_CI_DASHBOARD_AFFECTED}",
+            f"RAY_CI_DOC_AFFECTED={RAY_CI_DOC_AFFECTED}",
+            f"RAY_CI_JAVA_AFFECTED={RAY_CI_JAVA_AFFECTED}",
+            f"RAY_CI_PYTHON_AFFECTED={RAY_CI_PYTHON_AFFECTED}",
+            f"RAY_CI_LINUX_WHEELS_AFFECTED={RAY_CI_LINUX_WHEELS_AFFECTED}",
+            f"RAY_CI_MACOS_WHEELS_AFFECTED={RAY_CI_MACOS_WHEELS_AFFECTED}",
+            f"RAY_CI_STREAMING_CPP_AFFECTED={RAY_CI_STREAMING_CPP_AFFECTED}",
+            f"RAY_CI_STREAMING_PYTHON_AFFECTED={RAY_CI_STREAMING_PYTHON_AFFECTED}",
+            f"RAY_CI_STREAMING_JAVA_AFFECTED={RAY_CI_STREAMING_JAVA_AFFECTED}",
+            f"RAY_CI_DOCKER_AFFECTED={RAY_CI_DOCKER_AFFECTED}",
+            f"RAY_CI_PYTHON_DEPENDENCIES_AFFECTED={RAY_CI_PYTHON_DEPENDENCIES_AFFECTED}",
+        ]
+    )
 
     # Debug purpose
     print(output_string, file=sys.stderr)

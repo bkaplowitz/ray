@@ -66,7 +66,7 @@ def _configure_resource_group(config):
 
     # choose a random subnet, skipping most common value of 0
     random.seed(resource_group)
-    subnet_mask = "10.{}.0.0/16".format(random.randint(1, 254))
+    subnet_mask = f"10.{random.randint(1, 254)}.0.0/16"
 
     parameters = {
         "properties": {
@@ -100,12 +100,11 @@ def _configure_key_pair(config):
         try:
             key_path = Path(config["auth"][key_type]).expanduser()
         except KeyError:
-            raise Exception("Config must define {}".format(key_type))
+            raise Exception(f"Config must define {key_type}")
         except TypeError:
-            raise Exception("Invalid config value for {}".format(key_type))
+            raise Exception(f"Invalid config value for {key_type}")
 
-        assert key_path.is_file(), (
-            "Could not find ssh key: {}".format(key_path))
+        assert key_path.is_file(), f"Could not find ssh key: {key_path}"
 
         if key_type == "ssh_public_key":
             with open(key_path, "r") as f:

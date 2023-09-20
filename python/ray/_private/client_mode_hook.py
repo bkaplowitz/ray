@@ -13,7 +13,7 @@ is_client_mode_enabled = os.environ.get("RAY_CLIENT_MODE", "0") == "1"
 # When RAY_CLIENT_MODE == 1, we treat it as default enabled client mode
 # This is useful for testing
 is_client_mode_enabled_by_default = is_client_mode_enabled
-os.environ.update({"RAY_CLIENT_MODE": "0"})
+os.environ["RAY_CLIENT_MODE"] = "0"
 
 # Local setting of whether to ignore client hook conversion. This defaults
 # to TRUE and is disabled when the underlying 'real' Ray function is needed.

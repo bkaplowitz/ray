@@ -29,10 +29,10 @@ class EventSummarizer:
 
     def summary(self) -> List[str]:
         """Generate the aggregated log summary of all added events."""
-        out = []
-        for template, quantity in self.events_by_key.items():
-            out.append(template.format(quantity))
-        return out
+        return [
+            template.format(quantity)
+            for template, quantity in self.events_by_key.items()
+        ]
 
     def clear(self) -> None:
         """Clear the events added."""

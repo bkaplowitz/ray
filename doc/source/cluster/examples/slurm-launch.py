@@ -61,17 +61,12 @@ if __name__ == "__main__":
         "Note that the command must be a string.")
     args = parser.parse_args()
 
-    if args.node:
-        # assert args.num_nodes == 1
-        node_info = "#SBATCH -w {}".format(args.node)
-    else:
-        node_info = ""
+    node_info = f"#SBATCH -w {args.node}" if args.node else ""
+    job_name = f'{args.exp_name}_{time.strftime("%m%d-%H%M", time.localtime())}'
 
-    job_name = "{}_{}".format(args.exp_name,
-                              time.strftime("%m%d-%H%M", time.localtime()))
-
-    partition_option = "#SBATCH --partition={}".format(
-        args.partition) if args.partition else ""
+    partition_option = (
+        f"#SBATCH --partition={args.partition}" if args.partition else ""
+    )
 
     # ===== Modified the template script =====
     with open(template_file, "r") as f:
@@ -90,7 +85,7 @@ if __name__ == "__main__":
         "RUNNABLE!")
 
     # ===== Save the script =====
-    script_file = "{}.sh".format(job_name)
+    script_file = f"{job_name}.sh"
     with open(script_file, "w") as f:
         f.write(text)
 
@@ -98,6 +93,6 @@ if __name__ == "__main__":
     print("Starting to submit job!")
     subprocess.Popen(["sbatch", script_file])
     print(
-        "Job submitted! Script file is at: <{}>. Log file is at: <{}>".format(
-            script_file, "{}.log".format(job_name)))
+        f"Job submitted! Script file is at: <{script_file}>. Log file is at: <{job_name}.log>"
+    )
     sys.exit(0)

@@ -24,8 +24,8 @@ from ray.autoscaler._private.event_system import (CreateClusterEvent,
 logger = logging.getLogger(__name__)
 
 RAY = "ray-autoscaler"
-DEFAULT_RAY_INSTANCE_PROFILE = RAY + "-v1"
-DEFAULT_RAY_IAM_ROLE = RAY + "-v1"
+DEFAULT_RAY_INSTANCE_PROFILE = f"{RAY}-v1"
+DEFAULT_RAY_IAM_ROLE = f"{RAY}-v1"
 SECURITY_GROUP_TEMPLATE = RAY + "-{}"
 
 DEFAULT_AMI_NAME = "AWS Deep Learning AMI (Ubuntu 18.04) V30.0"
@@ -56,15 +56,13 @@ def key_pair(i, region, key_name):
     Returns the ith default (aws_key_pair_name, key_pair_path).
     """
     if i == 0:
-        key_pair_name = ("{}_{}".format(RAY, region)
-                         if key_name is None else key_name)
-        return (key_pair_name,
-                os.path.expanduser("~/.ssh/{}.pem".format(key_pair_name)))
+        key_pair_name = f"{RAY}_{region}" if key_name is None else key_name
+        return key_pair_name, os.path.expanduser(f"~/.ssh/{key_pair_name}.pem")
 
-    key_pair_name = ("{}_{}_{}".format(RAY, i, region)
-                     if key_name is None else key_name + "_key-{}".format(i))
-    return (key_pair_name,
-            os.path.expanduser("~/.ssh/{}.pem".format(key_pair_name)))
+    key_pair_name = (
+        f"{RAY}_{i}_{region}" if key_name is None else f"{key_name}_key-{i}"
+    )
+    return key_pair_name, os.path.expanduser(f"~/.ssh/{key_pair_name}.pem")
 
 
 # Suppress excessive connection dropped logs from boto
@@ -107,10 +105,10 @@ def log_to_cli(config: Dict[str, Any]) -> None:
     with cli_logger.group("{} config", provider_name):
 
         def print_info(resource_string: str,
-                       key: str,
-                       src_key: str,
-                       allowed_tags: Optional[List[str]] = None,
-                       list_value: bool = False) -> None:
+                               key: str,
+                               src_key: str,
+                               allowed_tags: Optional[List[str]] = None,
+                               list_value: bool = False) -> None:
             if allowed_tags is None:
                 allowed_tags = ["default"]
 
@@ -140,17 +138,19 @@ def log_to_cli(config: Dict[str, Any]) -> None:
                 # all node types are configured the same, condense
                 # log output
                 cli_logger.labeled_value(
-                    resource_string + " (all available node types)",
+                    f"{resource_string} (all available node types)",
                     "{}",
                     head_value_str,
-                    _tags=node_tags[config["head_node_type"]])
+                    _tags=node_tags[config["head_node_type"]],
+                )
             else:
                 # do head node type first
                 cli_logger.labeled_value(
-                    resource_string + f" ({head_node_type})",
+                    f"{resource_string} ({head_node_type})",
                     "{}",
                     head_value_str,
-                    _tags=node_tags[head_node_type])
+                    _tags=node_tags[head_node_type],
+                )
 
                 # go through remaining types
                 for node_type_key, node_type in config[
@@ -162,10 +162,11 @@ def log_to_cli(config: Dict[str, Any]) -> None:
                         workers_value_str = cli_logger.render_list(
                             workers_value_str)
                     cli_logger.labeled_value(
-                        resource_string + f" ({node_type_key})",
+                        f"{resource_string} ({node_type_key})",
                         "{}",
                         workers_value_str,
-                        _tags=node_tags[node_type_key])
+                        _tags=node_tags[node_type_key],
+                    )
 
         tags = {"default": _log_info["head_instance_profile_src"] == "default"}
         # head_node_config is the head_node_type's config,
@@ -378,8 +379,9 @@ def _configure_key_pair(config):
     cli_logger.doassert(
         os.path.exists(key_path), "Private key file " + cf.bold("{}") +
         " not found for " + cf.bold("{}"), key_path, key_name)  # todo: err msg
-    assert os.path.exists(key_path), \
-        "Private key file {} not found for {}".format(key_path, key_name)
+    assert os.path.exists(
+        key_path
+    ), f"Private key file {key_path} not found for {key_name}"
 
     config["auth"]["ssh_private_key"] = key_path
     for node_type in node_types.values():
@@ -409,11 +411,7 @@ def _configure_subnet(config):
     for node_type in config["available_node_types"].values():
         node_config = node_type["node_config"]
         sg_ids.extend(node_config.get("SecurityGroupIds", []))
-    if sg_ids:
-        vpc_id_of_sg = _get_vpc_id_of_sg(sg_ids, config)
-    else:
-        vpc_id_of_sg = None
-
+    vpc_id_of_sg = _get_vpc_id_of_sg(sg_ids, config) if sg_ids else None
     try:
         candidate_subnets = ec2.subnets.all()
         if vpc_id_of_sg:
@@ -495,7 +493,7 @@ def _get_vpc_id_of_sg(sg_ids: List[str], config: Dict[str, Any]) -> str:
     no_sg_msg = "Failed to detect a security group with id equal to any of "\
         "the configured SecurityGroupIds."
     cli_logger.doassert(len(vpc_ids) > 0, no_sg_msg)
-    assert len(vpc_ids) > 0, no_sg_msg
+    assert vpc_ids, no_sg_msg
 
     return vpc_ids[0]
 
@@ -516,7 +514,7 @@ def _configure_security_group(config):
     if not node_types_to_configure:
         return config  # have user-defined groups
     head_node_type = config["head_node_type"]
-    if config["head_node_type"] in node_types_to_configure:
+    if head_node_type in node_types_to_configure:
         # configure head node security group last for determinism
         # in tests
         node_types_to_configure.remove(head_node_type)
@@ -611,7 +609,7 @@ def _get_vpc_id_or_die(ec2, subnet_id):
 
     # TODO: better error message
     cli_logger.doassert(len(subnet) == 1, "Subnet ID not found: {}", subnet_id)
-    assert len(subnet) == 1, "Subnet ID not found: {}".format(subnet_id)
+    assert len(subnet) == 1, f"Subnet ID not found: {subnet_id}"
     subnet = subnet[0]
     return subnet.vpc_id
 
@@ -631,10 +629,9 @@ def _get_security_groups(config, vpc_ids, group_names):
             "Name": "vpc-id",
             "Values": unique_vpc_ids
         }]))
-    filtered_groups = [
+    return [
         sg for sg in existing_groups if sg.group_name in unique_group_names
     ]
-    return filtered_groups
 
 
 def _create_security_group(config, vpc_id, group_name):
@@ -731,11 +728,10 @@ def _get_role(role_name, config):
     except botocore.exceptions.ClientError as exc:
         if exc.response.get("Error", {}).get("Code") == "NoSuchEntity":
             return None
-        else:
-            handle_boto_error(
-                exc, "Failed to fetch IAM role data for {} from AWS.",
-                cf.bold(role_name))
-            raise exc
+        handle_boto_error(
+            exc, "Failed to fetch IAM role data for {} from AWS.",
+            cf.bold(role_name))
+        raise exc
 
 
 def _get_instance_profile(profile_name, config):
@@ -747,12 +743,11 @@ def _get_instance_profile(profile_name, config):
     except botocore.exceptions.ClientError as exc:
         if exc.response.get("Error", {}).get("Code") == "NoSuchEntity":
             return None
-        else:
-            handle_boto_error(
-                exc,
-                "Failed to fetch IAM instance profile data for {} from AWS.",
-                cf.bold(profile_name))
-            raise exc
+        handle_boto_error(
+            exc,
+            "Failed to fetch IAM instance profile data for {} from AWS.",
+            cf.bold(profile_name))
+        raise exc
 
 
 def _get_key(key_name, config):

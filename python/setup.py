@@ -46,9 +46,9 @@ pickle5_url = ("https://github.com/pitrou/pickle5-backport/archive/"
 def find_version(*filepath):
     # Extract version information from filepath
     with open(os.path.join(ROOT_DIR, *filepath)) as fp:
-        version_match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]",
-                                  fp.read(), re.M)
-        if version_match:
+        if version_match := re.search(
+            r"^__version__ = ['\"]([^'\"]*)['\"]", fp.read(), re.M
+        ):
             return version_match.group(1)
         raise RuntimeError("Unable to find version string.")
 
@@ -84,17 +84,14 @@ class SetupSpec:
         self.extras: dict = {}
 
     def get_packages(self):
-        if self.type == SetupType.RAY:
-            return setuptools.find_packages()
-        else:
-            return []
+        return setuptools.find_packages() if self.type == SetupType.RAY else []
 
 
 build_type = os.getenv("RAY_DEBUG_BUILD")
-if build_type == "debug":
-    BUILD_TYPE = BuildType.DEBUG
-elif build_type == "asan":
+if build_type == "asan":
     BUILD_TYPE = BuildType.ASAN
+elif build_type == "debug":
+    BUILD_TYPE = BuildType.DEBUG
 else:
     BUILD_TYPE = BuildType.DEFAULT
 
@@ -117,10 +114,10 @@ else:
 
 # NOTE: The lists below must be kept in sync with ray/BUILD.bazel.
 ray_files = [
-    "ray/core/src/ray/thirdparty/redis/src/redis-server" + exe_suffix,
-    "ray/_raylet" + pyd_suffix,
-    "ray/core/src/ray/gcs/gcs_server" + exe_suffix,
-    "ray/core/src/ray/raylet/raylet" + exe_suffix,
+    f"ray/core/src/ray/thirdparty/redis/src/redis-server{exe_suffix}",
+    f"ray/_raylet{pyd_suffix}",
+    f"ray/core/src/ray/gcs/gcs_server{exe_suffix}",
+    f"ray/core/src/ray/raylet/raylet{exe_suffix}",
     "ray/streaming/_streaming.so",
 ]
 
@@ -187,10 +184,11 @@ if setup_spec.type == SetupType.RAY:
         "tune": ["pandas", "tabulate", "tensorboardX>=1.9", "requests"],
         "k8s": ["kubernetes", "urllib3"],
         "observability": [
-            "opentelemetry-api==1.1.0", "opentelemetry-sdk==1.1.0",
-            "opentelemetry-exporter-otlp==1.1.0"
+            "opentelemetry-api==1.1.0",
+            "opentelemetry-sdk==1.1.0",
+            "opentelemetry-exporter-otlp==1.1.0",
         ],
-        "cpp": ["ray-cpp==" + setup_spec.version]
+        "cpp": [f"ray-cpp=={setup_spec.version}"],
     }
     if sys.version_info >= (3, 7, 0):
         setup_spec.extras["k8s"].append("kopf")
@@ -232,7 +230,7 @@ if setup_spec.type == SetupType.RAY:
 def is_native_windows_or_msys():
     """Check to see if we are running on native Windows,
     but NOT WSL (which is seen as Linux)."""
-    return sys.platform == "msys" or sys.platform == "win32"
+    return sys.platform in ["msys", "win32"]
 
 
 def is_invalid_windows_platform():
@@ -250,9 +248,8 @@ def bazel_invoke(invoker, cmdline, *args, **kwargs):
     first_candidate = os.getenv("BAZEL_PATH", "bazel")
     candidates = [first_candidate]
     if sys.platform == "win32":
-        mingw_dir = os.getenv("MINGW_DIR")
-        if mingw_dir:
-            candidates.append(mingw_dir + "/bin/bazel.exe")
+        if mingw_dir := os.getenv("MINGW_DIR"):
+            candidates.append(f"{mingw_dir}/bin/bazel.exe")
     else:
         candidates.append(os.path.join(home, ".bazel", "bin", "bazel"))
     result = None
@@ -290,7 +287,7 @@ def download_pickle5(pickle5_dir):
             tf.extractall(work_dir)
         finally:
             tf.close()
-        src_dir = os.path.join(work_dir, project + "-" + commit)
+        src_dir = os.path.join(work_dir, f"{project}-{commit}")
         args = [sys.executable, "setup.py", "-q", "bdist_wheel"]
         subprocess.check_call(args, cwd=src_dir)
         for wheel in glob.glob(os.path.join(src_dir, "dist", "*.whl")):
@@ -303,10 +300,7 @@ def download_pickle5(pickle5_dir):
 
 def build(build_python, build_java, build_cpp):
     if tuple(sys.version_info[:2]) not in SUPPORTED_PYTHONS:
-        msg = ("Detected Python version {}, which is not supported. "
-               "Only Python {} are supported.").format(
-                   ".".join(map(str, sys.version_info[:2])),
-                   ", ".join(".".join(map(str, v)) for v in SUPPORTED_PYTHONS))
+        msg = f'Detected Python version {".".join(map(str, sys.version_info[:2]))}, which is not supported. Only Python {", ".join(".".join(map(str, v)) for v in SUPPORTED_PYTHONS)} are supported.'
         raise RuntimeError(msg)
 
     if is_invalid_windows_platform():
@@ -318,8 +312,7 @@ def build(build_python, build_java, build_cpp):
     bazel_env = dict(os.environ, PYTHON3_BIN_PATH=sys.executable)
 
     if is_native_windows_or_msys():
-        SHELL = bazel_env.get("SHELL")
-        if SHELL:
+        if SHELL := bazel_env.get("SHELL"):
             bazel_env.setdefault("BAZEL_SH", os.path.normpath(SHELL))
         BAZEL_SH = bazel_env["BAZEL_SH"]
         SYSTEMROOT = os.getenv("SystemRoot")
@@ -352,11 +345,19 @@ def build(build_python, build_java, build_cpp):
     if not os.getenv("SKIP_THIRDPARTY_INSTALL"):
         pip_packages = ["psutil", "setproctitle==1.2.2", "colorama"]
         subprocess.check_call(
-            [
-                sys.executable, "-m", "pip", "install", "-q",
-                "--target=" + os.path.join(ROOT_DIR, THIRDPARTY_SUBDIR)
-            ] + pip_packages,
-            env=dict(os.environ, CC="gcc"))
+            (
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "-q",
+                    f"--target={os.path.join(ROOT_DIR, THIRDPARTY_SUBDIR)}",
+                ]
+                + pip_packages
+            ),
+            env=dict(os.environ, CC="gcc"),
+        )
 
     version_info = bazel_invoke(subprocess.check_output, ["--version"])
     bazel_version_str = version_info.rstrip().decode("utf-8").split(" ", 1)[1]
@@ -366,8 +367,9 @@ def build(build_python, build_java, build_cpp):
     ]
     bazel_version = tuple(map(int, bazel_version_digits))
     if bazel_version < SUPPORTED_BAZEL:
-        logger.warning("Expected Bazel version {} but found {}".format(
-            ".".join(map(str, SUPPORTED_BAZEL)), bazel_version_str))
+        logger.warning(
+            f'Expected Bazel version {".".join(map(str, SUPPORTED_BAZEL))} but found {bazel_version_str}'
+        )
 
     bazel_targets = []
     bazel_targets += ["//:ray_pkg"] if build_python else []
@@ -389,8 +391,7 @@ def build(build_python, build_java, build_cpp):
 def walk_directory(directory):
     file_list = []
     for (root, dirs, filenames) in os.walk(directory):
-        for name in filenames:
-            file_list.append(os.path.join(root, name))
+        file_list.extend(os.path.join(root, name) for name in filenames)
     return file_list
 
 
@@ -435,11 +436,11 @@ def pip_run(build_ext):
                     setup_spec.files_to_include.append(
                         os.path.join(directory, filename))
 
-    copied_files = 0
-    for filename in setup_spec.files_to_include:
-        copied_files += copy_file(build_ext.build_lib, filename, ROOT_DIR)
-    print("# of files copied to {}: {}".format(build_ext.build_lib,
-                                               copied_files))
+    copied_files = sum(
+        copy_file(build_ext.build_lib, filename, ROOT_DIR)
+        for filename in setup_spec.files_to_include
+    )
+    print(f"# of files copied to {build_ext.build_lib}: {copied_files}")
 
 
 def api_main(program, *args):

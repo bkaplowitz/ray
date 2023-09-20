@@ -13,11 +13,7 @@ OBJECT_SIZE = 2**30
 
 
 def num_alive_nodes():
-    n = 0
-    for node in ray.nodes():
-        if node["Alive"]:
-            n += 1
-    return n
+    return sum(1 for node in ray.nodes() if node["Alive"])
 
 
 def scale_to(target):
@@ -47,10 +43,10 @@ def test_object_broadcast():
     for actor in tqdm(actors, desc="Ensure all actors have started."):
         ray.get(actor.foo.remote())
 
-    result_refs = []
-    for actor in tqdm(actors, desc="Broadcasting objects"):
-        result_refs.append(actor.sum.remote(ref))
-
+    result_refs = [
+        actor.sum.remote(ref)
+        for actor in tqdm(actors, desc="Broadcasting objects")
+    ]
     results = ray.get(result_refs)
     for result in results:
         assert result == OBJECT_SIZE

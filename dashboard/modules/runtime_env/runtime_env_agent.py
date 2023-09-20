@@ -42,14 +42,14 @@ class RuntimeEnvAgent(dashboard_utils.DashboardAgentModule,
         self._runtime_env_dir = dashboard_agent.runtime_env_dir
         self._setup = import_attr(dashboard_agent.runtime_env_setup_hook)
         self._logging_params = dashboard_agent.logging_params
-        self._per_job_logger_cache = dict()
+        self._per_job_logger_cache = {}
         runtime_env.PKG_DIR = dashboard_agent.runtime_env_dir
         # Cache the results of creating envs to avoid repeatedly calling into
         # conda and other slow calls.
-        self._env_cache: Dict[str, CreatedEnvResult] = dict()
+        self._env_cache: Dict[str, CreatedEnvResult] = {}
         # Maps a serialized runtime env to a lock that is used
         # to prevent multiple concurrent installs of the same env.
-        self._env_locks: Dict[str, asyncio.Lock] = dict()
+        self._env_locks: Dict[str, asyncio.Lock] = {}
 
     def get_or_create_logger(self, job_id: bytes):
         job_id = job_id.decode()

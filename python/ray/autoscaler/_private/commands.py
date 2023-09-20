@@ -254,8 +254,9 @@ def _bootstrap_config(config: Dict[str, Any],
 
     hasher = hashlib.sha1()
     hasher.update(json.dumps([config], sort_keys=True).encode("utf-8"))
-    cache_key = os.path.join(tempfile.gettempdir(),
-                             "ray-config-{}".format(hasher.hexdigest()))
+    cache_key = os.path.join(
+        tempfile.gettempdir(), f"ray-config-{hasher.hexdigest()}"
+    )
 
     if os.path.exists(cache_key) and not no_config_cache:
         config_cache = json.loads(open(cache_key).read())
@@ -290,8 +291,7 @@ def _bootstrap_config(config: Dict[str, Any],
 
     importer = _NODE_PROVIDERS.get(config["provider"]["type"])
     if not importer:
-        raise NotImplementedError("Unsupported provider {}".format(
-            config["provider"]))
+        raise NotImplementedError(f'Unsupported provider {config["provider"]}')
 
     provider_cls = importer(config["provider"])
 
@@ -313,7 +313,7 @@ def _bootstrap_config(config: Dict[str, Any],
         # the user to manually fill the resources) as we currently support
         # autofilling resources for AWS and Kubernetes only.
         validate_config(config)
-    except (ModuleNotFoundError, ImportError):
+    except ImportError:
         cli_logger.abort(
             "Not all Ray autoscaler dependencies were found. "
             "In Ray 1.4+, the Ray CLI, autoscaler, and dashboard will "
@@ -502,12 +502,11 @@ def kill_node(config_file: str, yes: bool, hard: bool,
 
     time.sleep(POLL_INTERVAL)
 
-    if config.get("provider", {}).get("use_internal_ips", False) is True:
-        node_ip = provider.internal_ip(node)
-    else:
-        node_ip = provider.external_ip(node)
-
-    return node_ip
+    return (
+        provider.internal_ip(node)
+        if config.get("provider", {}).get("use_internal_ips", False) is True
+        else provider.external_ip(node)
+    )
 
 
 def monitor_cluster(cluster_config_file: str, num_lines: int,
@@ -529,7 +528,7 @@ def monitor_cluster(cluster_config_file: str, num_lines: int,
 def warn_about_bad_start_command(start_commands: List[str],
                                  no_monitor_on_head: bool = False) -> None:
     ray_start_cmd = list(filter(lambda x: "ray start" in x, start_commands))
-    if len(ray_start_cmd) == 0:
+    if not ray_start_cmd:
         cli_logger.warning(
             "Ray runtime will not be started because `{}` is not in `{}`.",
             cf.bold("ray start"), cf.bold("head_start_ray_commands"))

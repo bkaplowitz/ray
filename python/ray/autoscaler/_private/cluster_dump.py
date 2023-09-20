@@ -575,8 +575,7 @@ def get_info_from_ray_cluster_config(
     ssh_key = config["auth"]["ssh_private_key"]
 
     docker = None
-    docker_config = config.get("docker", None)
-    if docker_config:
+    if docker_config := config.get("docker", None):
         docker = docker_config.get("container_name", None)
 
     cluster_name = config.get("cluster_name", None)

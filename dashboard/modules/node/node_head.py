@@ -63,8 +63,7 @@ class NodeHead(dashboard_utils.DashboardHeadModule):
         if change.new:
             # TODO(fyrestone): Handle exceptions.
             node_id, node_info = change.new
-            address = "{}:{}".format(node_info["nodeManagerAddress"],
-                                     int(node_info["nodeManagerPort"]))
+            address = f'{node_info["nodeManagerAddress"]}:{int(node_info["nodeManagerPort"])}'
             options = (("grpc.enable_http_proxy", 0), )
             channel = aiogrpc.insecure_channel(address, options=options)
             stub = node_manager_pb2_grpc.NodeManagerServiceStub(channel)
@@ -148,10 +147,11 @@ class NodeHead(dashboard_utils.DashboardHeadModule):
                 clients=all_node_details,
             )
         elif view is not None and view.lower() == "hostNameList".lower():
-            alive_hostnames = set()
-            for node in DataSource.nodes.values():
-                if node["state"] == "ALIVE":
-                    alive_hostnames.add(node["nodeManagerHostname"])
+            alive_hostnames = {
+                node["nodeManagerHostname"]
+                for node in DataSource.nodes.values()
+                if node["state"] == "ALIVE"
+            }
             return dashboard_utils.rest_response(
                 success=True,
                 message="Node hostname list fetched.",
@@ -205,7 +205,7 @@ class NodeHead(dashboard_utils.DashboardHeadModule):
         pid = str(req.query.get("pid", ""))
         node_logs = DataSource.ip_and_pid_to_logs.get(ip, {})
         if pid:
-            node_logs = {str(pid): node_logs.get(pid, [])}
+            node_logs = {pid: node_logs.get(pid, [])}
         return dashboard_utils.rest_response(
             success=True, message="Fetched logs.", logs=node_logs)
 
@@ -215,7 +215,7 @@ class NodeHead(dashboard_utils.DashboardHeadModule):
         pid = str(req.query.get("pid", ""))
         node_errors = DataSource.ip_and_pid_to_errors.get(ip, {})
         if pid:
-            node_errors = {str(pid): node_errors.get(pid, [])}
+            node_errors = {pid: node_errors.get(pid, [])}
         return dashboard_utils.rest_response(
             success=True, message="Fetched errors.", errors=node_errors)
 
@@ -275,8 +275,7 @@ class NodeHead(dashboard_utils.DashboardHeadModule):
                     pubsub_msg.data)
                 message = error_data.error_message
                 message = re.sub(r"\x1b\[\d+m", "", message)
-                match = re.search(r"\(pid=(\d+), ip=(.*?)\)", message)
-                if match:
+                if match := re.search(r"\(pid=(\d+), ip=(.*?)\)", message):
                     pid = match.group(1)
                     ip = match.group(2)
                     errs_for_ip = dict(

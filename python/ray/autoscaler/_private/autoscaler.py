@@ -121,7 +121,7 @@ class StandardAutoscaler:
         # then prom_metrics must be instantitiated to increment the
         # exception counter)
         self.prom_metrics = prom_metrics or \
-            AutoscalerPrometheusMetrics()
+                AutoscalerPrometheusMetrics()
         self.resource_demand_scheduler = None
         self.reset(errors_fatal=True)
         self.head_node_ip = load_metrics.local_ip
@@ -177,7 +177,7 @@ class StandardAutoscaler:
 
         for local_path in self.config["file_mounts"].values():
             assert os.path.exists(local_path)
-        logger.info("StandardAutoscaler: {}".format(self.config))
+        logger.info(f"StandardAutoscaler: {self.config}")
 
     def update(self):
         try:
@@ -459,18 +459,14 @@ class StandardAutoscaler:
             self.available_node_types[self.config["head_node_type"]][
                 "resources"])
         if not head_node_resources:
-            # Legacy yaml might include {} in the resources field.
-            # TODO(ameer): this is somewhat duplicated in
-            # resource_demand_scheduler.py.
-            head_id: List[NodeID] = self.provider.non_terminated_nodes({
-                TAG_RAY_NODE_KIND: NODE_KIND_HEAD
-            })
-            if head_id:
+            if head_id := self.provider.non_terminated_nodes(
+                {TAG_RAY_NODE_KIND: NODE_KIND_HEAD}
+            ):
                 head_ip = self.provider.internal_ip(head_id[0])
                 static_nodes: Dict[
                     NodeIP,
                     ResourceDict] = \
-                    self.load_metrics.get_static_node_resources_by_ip()
+                        self.load_metrics.get_static_node_resources_by_ip()
                 head_node_resources = static_nodes.get(head_ip, {})
             else:
                 head_node_resources = {}
@@ -489,7 +485,7 @@ class StandardAutoscaler:
                     static_nodes: Dict[
                         NodeIP,
                         ResourceDict] = \
-                            self.load_metrics.get_static_node_resources_by_ip()
+                                self.load_metrics.get_static_node_resources_by_ip()
                     node_ip = self.provider.internal_ip(node_id)
                     node_resources = static_nodes.get(node_ip, {})
                 max_node_resources.append(node_resources)
@@ -499,20 +495,17 @@ class StandardAutoscaler:
         # is following the given order here.
         used_resource_requests: List[ResourceDict]
         _, used_resource_requests = \
-            get_bin_pack_residual(max_node_resources,
+                get_bin_pack_residual(max_node_resources,
                                   self.load_metrics.get_resource_requests())
         # Remove the first entry (the head node).
         max_node_resources.pop(0)
         # Remove the first entry (the head node).
         used_resource_requests.pop(0)
         for i, node_id in enumerate(resource_demand_vector_worker_node_ids):
-            if used_resource_requests[i] == max_node_resources[i] \
-                    and max_node_resources[i]:
-                # No resources of the node were needed for request_resources().
-                # max_node_resources[i] is an empty dict for legacy yamls
-                # before the node is connected.
-                pass
-            else:
+            if (
+                used_resource_requests[i] != max_node_resources[i]
+                or not max_node_resources[i]
+            ):
                 nodes_not_allowed_to_terminate.add(node_id)
         return frozenset(nodes_not_allowed_to_terminate)
 
@@ -684,9 +677,7 @@ class StandardAutoscaler:
         calculated_launch_hash = hash_launch_conf(launch_config,
                                                   self.config["auth"])
 
-        if calculated_launch_hash != tag_launch_conf:
-            return False
-        return True
+        return calculated_launch_hash == tag_launch_conf
 
     def files_up_to_date(self, node_id):
         node_tags = self.provider.node_tags(node_id)
@@ -697,11 +688,9 @@ class StandardAutoscaler:
                 or (self.file_mounts_contents_hash is not None
                     and self.file_mounts_contents_hash !=
                     applied_file_mounts_contents_hash)):
-            logger.info("StandardAutoscaler: "
-                        "{}: Runtime state is ({},{}), want ({},{})".format(
-                            node_id, applied_config_hash,
-                            applied_file_mounts_contents_hash,
-                            self.runtime_hash, self.file_mounts_contents_hash))
+            logger.info(
+                f"StandardAutoscaler: {node_id}: Runtime state is ({applied_config_hash},{applied_file_mounts_contents_hash}), want ({self.runtime_hash},{self.file_mounts_contents_hash})"
+            )
             return False
         return True
 
@@ -731,7 +720,7 @@ class StandardAutoscaler:
             node_status = self.provider.node_tags(node_id)[TAG_RAY_NODE_STATUS]
             # We're not responsible for taking down
             # nodes with pending or failed status:
-            if not node_status == STATUS_UP_TO_DATE:
+            if node_status != STATUS_UP_TO_DATE:
                 continue
             # This node is up-to-date. If it hasn't had the chance to produce
             # a heartbeat, fake the heartbeat now (see logic for completed node
@@ -743,9 +732,9 @@ class StandardAutoscaler:
             if self.heartbeat_on_time(node_id, now):
                 continue
             # Node is unhealthy, terminate:
-            logger.warning("StandardAutoscaler: "
-                           "{}: No recent heartbeat, "
-                           "terminating node.".format(node_id))
+            logger.warning(
+                f"StandardAutoscaler: {node_id}: No recent heartbeat, terminating node."
+            )
             self.event_summarizer.add(
                 "Terminating {} nodes of type " + self._get_node_type(node_id)
                 + " (lost contact with raylet).",
@@ -761,9 +750,9 @@ class StandardAutoscaler:
         if self.heartbeat_on_time(node_id, now):
             return
 
-        logger.warning("StandardAutoscaler: "
-                       "{}: No recent heartbeat, "
-                       "restarting Ray to recover...".format(node_id))
+        logger.warning(
+            f"StandardAutoscaler: {node_id}: No recent heartbeat, restarting Ray to recover..."
+        )
         self.event_summarizer.add(
             "Restarting {} nodes of type " + self._get_node_type(node_id) +
             " (lost contact with raylet).",
@@ -898,8 +887,7 @@ class StandardAutoscaler:
         return True
 
     def launch_new_node(self, count: int, node_type: Optional[str]) -> None:
-        logger.info(
-            "StandardAutoscaler: Queue {} new nodes for launch".format(count))
+        logger.info(f"StandardAutoscaler: Queue {count} new nodes for launch")
         self.event_summarizer.add(
             "Adding {} nodes of type " + str(node_type) + ".",
             quantity=count,
@@ -935,8 +923,7 @@ class StandardAutoscaler:
             for node in nodes:
                 self.node_tracker.untrack(node)
                 self.prom_metrics.stopped_nodes.inc()
-        logger.error("StandardAutoscaler: terminated {} node(s)".format(
-            len(nodes)))
+        logger.error(f"StandardAutoscaler: terminated {len(nodes)} node(s)")
 
     def summary(self):
         """Summarizes the active, pending, and failed node launches.
@@ -960,10 +947,14 @@ class StandardAutoscaler:
             ip = self.provider.internal_ip(node_id)
             node_tags = self.provider.node_tags(node_id)
 
-            if not all(
-                    tag in node_tags
-                    for tag in (TAG_RAY_NODE_KIND, TAG_RAY_USER_NODE_TYPE,
-                                TAG_RAY_NODE_STATUS)):
+            if any(
+                tag not in node_tags
+                for tag in (
+                    TAG_RAY_NODE_KIND,
+                    TAG_RAY_USER_NODE_TYPE,
+                    TAG_RAY_NODE_STATUS,
+                )
+            ):
                 # In some node providers, creation of a node and tags is not
                 # atomic, so just skip it.
                 continue
@@ -972,10 +963,7 @@ class StandardAutoscaler:
                 continue
             node_type = node_tags[TAG_RAY_USER_NODE_TYPE]
 
-            # TODO (Alex): If a node's raylet has died, it shouldn't be marked
-            # as active.
-            is_active = self.load_metrics.is_active(ip)
-            if is_active:
+            if is_active := self.load_metrics.is_active(ip):
                 active_nodes[node_type] += 1
                 non_failed.add(node_id)
             else:
@@ -988,13 +976,11 @@ class StandardAutoscaler:
 
         failed_nodes = self.node_tracker.get_all_failed_node_info(non_failed)
 
-        # The concurrent counter leaves some 0 counts in, so we need to
-        # manually filter those out.
-        pending_launches = {}
-        for node_type, count in self.pending_launches.breakdown().items():
-            if count:
-                pending_launches[node_type] = count
-
+        pending_launches = {
+            node_type: count
+            for node_type, count in self.pending_launches.breakdown().items()
+            if count
+        }
         return AutoscalerSummary(
             active_nodes=active_nodes,
             pending_nodes=pending_nodes,

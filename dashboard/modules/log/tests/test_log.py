@@ -52,7 +52,7 @@ def test_log(disable_aiohttp_cache, ray_start_with_dashboard):
     while True:
         time.sleep(1)
         try:
-            response = requests.get(webui_url + "/log_index")
+            response = requests.get(f"{webui_url}/log_index")
             response.raise_for_status()
             parser = LogUrlParser()
             parser.feed(response.text)
@@ -82,13 +82,14 @@ def test_log(disable_aiohttp_cache, ray_start_with_dashboard):
 
             # Test range request.
             response = requests.get(
-                webui_url + "/logs/dashboard.log",
-                headers={"Range": "bytes=43-51"})
+                f"{webui_url}/logs/dashboard.log",
+                headers={"Range": "bytes=43-51"},
+            )
             response.raise_for_status()
             assert response.text == "Dashboard"
 
             # Test logUrl in node info.
-            response = requests.get(webui_url + f"/nodes/{node_id}")
+            response = requests.get(f"{webui_url}/nodes/{node_id}")
             response.raise_for_status()
             node_info = response.json()
             assert node_info["result"] is True

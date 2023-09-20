@@ -106,10 +106,9 @@ class GlobalState:
                 object_ref)
             if object_info is None:
                 return {}
-            else:
-                object_location_info = gcs_utils.ObjectLocationInfo.FromString(
-                    object_info)
-                return self._gen_object_info(object_location_info)
+            object_location_info = gcs_utils.ObjectLocationInfo.FromString(
+                object_info)
+            return self._gen_object_info(object_location_info)
         else:
             object_table = self.global_state_accessor.get_object_table()
             results = {}
@@ -117,7 +116,7 @@ class GlobalState:
                 object_location_info = gcs_utils.ObjectLocationInfo.FromString(
                     object_table[i])
                 results[binary_to_hex(object_location_info.object_id)] = \
-                    self._gen_object_info(object_location_info)
+                        self._gen_object_info(object_location_info)
             return results
 
     def _gen_object_info(self, object_location_info):
@@ -125,17 +124,16 @@ class GlobalState:
         Returns:
             Information from object.
         """
-        locations = []
-        for location in object_location_info.locations:
-            locations.append(
-                ray._private.utils.binary_to_hex(location.manager))
-
-        object_info = {
+        locations = [
+            ray._private.utils.binary_to_hex(location.manager)
+            for location in object_location_info.locations
+        ]
+        return {
             "ObjectRef": ray._private.utils.binary_to_hex(
-                object_location_info.object_id),
+                object_location_info.object_id
+            ),
             "Locations": locations,
         }
-        return object_info
 
     def actor_table(self, actor_id):
         """Fetch and parse the actor table information for a single actor ID.
@@ -154,10 +152,9 @@ class GlobalState:
             actor_info = self.global_state_accessor.get_actor_info(actor_id)
             if actor_info is None:
                 return {}
-            else:
-                actor_table_data = gcs_utils.ActorTableData.FromString(
-                    actor_info)
-                return self._gen_actor_info(actor_table_data)
+            actor_table_data = gcs_utils.ActorTableData.FromString(
+                actor_info)
+            return self._gen_actor_info(actor_table_data)
         else:
             actor_table = self.global_state_accessor.get_actor_table()
             results = {}
@@ -165,7 +162,7 @@ class GlobalState:
                 actor_table_data = gcs_utils.ActorTableData.FromString(
                     actor_table[i])
                 results[binary_to_hex(actor_table_data.actor_id)] = \
-                    self._gen_actor_info(actor_table_data)
+                        self._gen_actor_info(actor_table_data)
 
             return results
 
@@ -175,7 +172,7 @@ class GlobalState:
         Returns:
             Information from actor table.
         """
-        actor_info = {
+        return {
             "ActorID": binary_to_hex(actor_table_data.actor_id),
             "Name": actor_table_data.name,
             "JobID": binary_to_hex(actor_table_data.job_id),
@@ -187,8 +184,7 @@ class GlobalState:
             "OwnerAddress": {
                 "IPAddress": actor_table_data.owner_address.ip_address,
                 "Port": actor_table_data.owner_address.port,
-                "NodeID": binary_to_hex(
-                    actor_table_data.owner_address.raylet_id),
+                "NodeID": binary_to_hex(actor_table_data.owner_address.raylet_id),
             },
             "State": actor_table_data.state,
             "NumRestarts": actor_table_data.num_restarts,
@@ -196,7 +192,6 @@ class GlobalState:
             "StartTime": actor_table_data.start_time,
             "EndTime": actor_table_data.end_time,
         }
-        return actor_info
 
     def node_resource_table(self, node_id=None):
         """Fetch and parse the node resource table info for one.
@@ -211,16 +206,15 @@ class GlobalState:
 
         node_id = ray.NodeID(hex_to_binary(node_id))
         node_resource_bytes = \
-            self.global_state_accessor.get_node_resource_info(node_id)
+                self.global_state_accessor.get_node_resource_info(node_id)
         if node_resource_bytes is None:
             return {}
-        else:
-            node_resource_info = gcs_utils.ResourceMap.FromString(
-                node_resource_bytes)
-            return {
-                key: value.resource_capacity
-                for key, value in node_resource_info.items.items()
-            }
+        node_resource_info = gcs_utils.ResourceMap.FromString(
+            node_resource_bytes)
+        return {
+            key: value.resource_capacity
+            for key, value in node_resource_info.items.items()
+        }
 
     def node_table(self):
         """Fetch and parse the Gcs node info table.
@@ -272,8 +266,7 @@ class GlobalState:
         results = []
         for i in range(len(job_table)):
             entry = gcs_utils.JobTableData.FromString(job_table[i])
-            job_info = {}
-            job_info["JobID"] = entry.job_id.hex()
+            job_info = {"JobID": entry.job_id.hex()}
             job_info["DriverIPAddress"] = entry.driver_ip_address
             job_info["DriverPid"] = entry.driver_pid
             job_info["Timestamp"] = entry.timestamp
@@ -333,11 +326,10 @@ class GlobalState:
                 placement_group_name, ray_namespace))
         if placement_group_info is None:
             return None
-        else:
-            placement_group_table_data = \
+        placement_group_table_data = \
                 gcs_utils.PlacementGroupTableData.FromString(
-                    placement_group_info)
-            return self._gen_placement_group_info(placement_group_table_data)
+                placement_group_info)
+        return self._gen_placement_group_info(placement_group_table_data)
 
     def placement_group_table(self, placement_group_id=None):
         self._check_connected()
@@ -350,21 +342,20 @@ class GlobalState:
                     placement_group_id))
             if placement_group_info is None:
                 return {}
-            else:
-                placement_group_info = (gcs_utils.PlacementGroupTableData.
-                                        FromString(placement_group_info))
-                return self._gen_placement_group_info(placement_group_info)
+            placement_group_info = (gcs_utils.PlacementGroupTableData.
+                                    FromString(placement_group_info))
+            return self._gen_placement_group_info(placement_group_info)
         else:
             placement_group_table = self.global_state_accessor.\
-                                    get_placement_group_table()
+                                        get_placement_group_table()
             results = {}
             for placement_group_info in placement_group_table:
                 placement_group_table_data = gcs_utils.\
-                    PlacementGroupTableData.FromString(placement_group_info)
+                        PlacementGroupTableData.FromString(placement_group_info)
                 placement_group_id = binary_to_hex(
                     placement_group_table_data.placement_group_id)
                 results[placement_group_id] = \
-                    self._gen_placement_group_info(placement_group_table_data)
+                        self._gen_placement_group_info(placement_group_table_data)
 
             return results
 
@@ -411,8 +402,7 @@ class GlobalState:
 
     def _seconds_to_microseconds(self, time_in_seconds):
         """A helper function for converting seconds to microseconds."""
-        time_in_microseconds = 10**6 * time_in_seconds
-        return time_in_microseconds
+        return 10**6 * time_in_seconds
 
     # Colors are specified at
     # https://github.com/catapult-project/catapult/blob/master/tracing/tracing/base/color_scheme.html.  # noqa: E501
@@ -541,11 +531,10 @@ class GlobalState:
                 "No profiling events found. Ray profiling must be enabled "
                 "by setting RAY_PROFILING=1.")
 
-        if filename is not None:
-            with open(filename, "w") as outfile:
-                json.dump(all_events, outfile)
-        else:
+        if filename is None:
             return all_events
+        with open(filename, "w") as outfile:
+            json.dump(all_events, outfile)
 
     def chrome_tracing_object_transfer_dump(self, filename=None):
         """Return a list of transfer events that can viewed as a timeline.
@@ -565,12 +554,12 @@ class GlobalState:
         """
         self._check_connected()
 
-        node_id_to_address = {}
-        for node_info in self.node_table():
-            node_id_to_address[node_info["NodeID"]] = "{}:{}".format(
-                node_info["NodeManagerAddress"],
-                node_info["ObjectManagerPort"])
-
+        node_id_to_address = {
+            node_info[
+                "NodeID"
+            ]: f'{node_info["NodeManagerAddress"]}:{node_info["ObjectManagerPort"]}'
+            for node_info in self.node_table()
+        }
         all_events = []
 
         for key, items in self.profile_table().items():
@@ -631,14 +620,10 @@ class GlobalState:
                     additional_event = new_event.copy()
                     additional_event["cname"] = "grey"
                     all_events.append(additional_event)
-                else:
-                    pass
-
-        if filename is not None:
-            with open(filename, "w") as outfile:
-                json.dump(all_events, outfile)
-        else:
+        if filename is None:
             return all_events
+        with open(filename, "w") as outfile:
+            json.dump(all_events, outfile)
 
     def workers(self):
         """Get a dictionary mapping worker ID to worker information."""
@@ -723,15 +708,11 @@ class GlobalState:
         available_resources_by_id = {}
 
         all_available_resources = \
-            self.global_state_accessor.get_all_available_resources()
+                self.global_state_accessor.get_all_available_resources()
         for available_resource in all_available_resources:
             message = gcs_utils.AvailableResources.FromString(
                 available_resource)
-            # Calculate available resources for this node.
-            dynamic_resources = {}
-            for resource_id, capacity in \
-                    message.resources_available.items():
-                dynamic_resources[resource_id] = capacity
+            dynamic_resources = dict(message.resources_available.items())
             # Update available resources for this node.
             node_id = ray._private.utils.binary_to_hex(message.node_id)
             available_resources_by_id[node_id] = dynamic_resources
@@ -855,9 +836,11 @@ def node_ids():
     """
     node_ids = []
     for node in nodes():
-        for k, v in node["Resources"].items():
-            if k.startswith(NODE_ID_PREFIX):
-                node_ids.append(k)
+        node_ids.extend(
+            k
+            for k, v in node["Resources"].items()
+            if k.startswith(NODE_ID_PREFIX)
+        )
     return node_ids
 
 
