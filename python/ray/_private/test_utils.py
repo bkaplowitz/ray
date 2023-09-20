@@ -106,27 +106,22 @@ def check_call_ray(args, capture_stdout=False, capture_stderr=False):
     # some deadlocks that occur when piping ray's output on Windows
     argv = ["ray"] + args
     if sys.platform == "win32":
-        result = check_call_module(
+        return check_call_module(
             ray_main,
             argv,
             capture_stdout=capture_stdout,
-            capture_stderr=capture_stderr)
-    else:
-        stdout_redir = None
-        stderr_redir = None
-        if capture_stdout:
-            stdout_redir = subprocess.PIPE
-        if capture_stderr and capture_stdout:
-            stderr_redir = subprocess.STDOUT
-        elif capture_stderr:
-            stderr_redir = subprocess.PIPE
-        proc = subprocess.Popen(argv, stdout=stdout_redir, stderr=stderr_redir)
-        (stdout, stderr) = proc.communicate()
-        if proc.returncode:
-            raise subprocess.CalledProcessError(proc.returncode, argv, stdout,
-                                                stderr)
-        result = b"".join([s for s in [stdout, stderr] if s is not None])
-    return result
+            capture_stderr=capture_stderr,
+        )
+    stderr_redir = None
+    stdout_redir = subprocess.PIPE if capture_stdout else None
+    if capture_stderr:
+        stderr_redir = subprocess.STDOUT if capture_stdout else subprocess.PIPE
+    proc = subprocess.Popen(argv, stdout=stdout_redir, stderr=stderr_redir)
+    (stdout, stderr) = proc.communicate()
+    if proc.returncode:
+        raise subprocess.CalledProcessError(proc.returncode, argv, stdout,
+                                            stderr)
+    return b"".join([s for s in [stdout, stderr] if s is not None])
 
 
 def wait_for_pid_to_exit(pid, timeout=20):
@@ -152,9 +147,8 @@ def wait_for_children_names_of_pid(pid, children_names, timeout=20):
             return
         time.sleep(0.1)
     raise RayTestTimeoutException(
-        "Timed out while waiting for process {} children to start "
-        "({} not found from children {}).".format(pid, not_found_children,
-                                                  children))
+        f"Timed out while waiting for process {pid} children to start ({not_found_children} not found from children {children})."
+    )
 
 
 def wait_for_children_of_pid(pid, num_children=1, timeout=20):
@@ -166,8 +160,8 @@ def wait_for_children_of_pid(pid, num_children=1, timeout=20):
             return
         time.sleep(0.1)
     raise RayTestTimeoutException(
-        "Timed out while waiting for process {} children to start "
-        "({}/{} started).".format(pid, num_alive, num_children))
+        f"Timed out while waiting for process {pid} children to start ({num_alive}/{num_children} started)."
+    )
 
 
 def wait_for_children_of_pid_to_exit(pid, timeout=20):
@@ -178,8 +172,8 @@ def wait_for_children_of_pid_to_exit(pid, timeout=20):
     _, alive = psutil.wait_procs(children, timeout=timeout)
     if len(alive) > 0:
         raise RayTestTimeoutException(
-            "Timed out while waiting for process children to exit."
-            " Children still alive: {}.".format([p.name() for p in alive]))
+            f"Timed out while waiting for process children to exit. Children still alive: {[p.name() for p in alive]}."
+        )
 
 
 def kill_process_by_name(name, SIGKILL=False):
@@ -262,7 +256,7 @@ def wait_for_num_nodes(num_nodes: int, timeout_s: int):
     start = time.time()
     next_feedback = start
     max_time = start + timeout_s
-    while not curr_nodes >= num_nodes:
+    while curr_nodes < num_nodes:
         now = time.time()
 
         if now >= max_time:
@@ -296,8 +290,7 @@ def kill_actor_and_wait_for_failure(actor, timeout=10, retry_interval_ms=100):
                 or actor_status["NumRestarts"] > current_num_restarts:
             return
         time.sleep(retry_interval_ms / 1000.0)
-    raise RuntimeError(
-        "It took too much time to kill an actor: {}".format(actor_id))
+    raise RuntimeError(f"It took too much time to kill an actor: {actor_id}")
 
 
 def wait_for_condition(condition_predictor, timeout=10, retry_interval_ms=100):
@@ -369,16 +362,17 @@ def recursive_fnmatch(dirpath, pattern):
     """
     matches = []
     for root, dirnames, filenames in os.walk(dirpath):
-        for filename in fnmatch.filter(filenames, pattern):
-            matches.append(os.path.join(root, filename))
+        matches.extend(
+            os.path.join(root, filename)
+            for filename in fnmatch.filter(filenames, pattern)
+        )
     return matches
 
 
 def generate_system_config_map(**kwargs):
-    ray_kwargs = {
+    return {
         "_system_config": kwargs,
     }
-    return ray_kwargs
 
 
 @ray.remote(num_cpus=0)
@@ -445,11 +439,7 @@ def same_elements(elems_a, elems_b):
         if x not in b:
             return False
 
-    for x in b:
-        if x not in a:
-            return False
-
-    return True
+    return all(x in a for x in b)
 
 
 @ray.remote
@@ -458,10 +448,7 @@ def _put(obj):
 
 
 def put_object(obj, use_ray_put):
-    if use_ray_put:
-        return ray.put(obj)
-    else:
-        return _put.remote(obj)
+    return ray.put(obj) if use_ray_put else _put.remote(obj)
 
 
 def put_unpinned_object(obj):
@@ -539,9 +526,7 @@ def get_error_message(pub_sub, num, error_type=None, timeout=20):
 def format_web_url(url):
     """Format web url."""
     url = url.replace("localhost", "http://127.0.0.1")
-    if not url.startswith("http://"):
-        return "http://" + url
-    return url
+    return f"http://{url}" if not url.startswith("http://") else url
 
 
 def new_scheduler_enabled():
@@ -589,8 +574,7 @@ def load_test_config(config_file_name):
     grandparent = path.parent.parent
     config_path = os.path.join(grandparent, "tests/test_cli_patterns",
                                config_file_name)
-    config = yaml.safe_load(open(config_path).read())
-    return config
+    return yaml.safe_load(open(config_path).read())
 
 
 def set_setup_func():

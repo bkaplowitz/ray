@@ -126,10 +126,8 @@ class JobProcessor:
     def _new_log_files(log_dir, filename):
         if log_dir is None:
             return None, None
-        stdout = open(
-            os.path.join(log_dir, filename + ".out"), "a", buffering=1)
-        stderr = open(
-            os.path.join(log_dir, filename + ".err"), "a", buffering=1)
+        stdout = open(os.path.join(log_dir, f"{filename}.out"), "a", buffering=1)
+        stderr = open(os.path.join(log_dir, f"{filename}.err"), "a", buffering=1)
         return stdout, stderr
 
     @abstractmethod
@@ -213,10 +211,11 @@ ray.shutdown()
         driver_code = self._template.format(
             job_config_args=job_config_args,
             import_path=repr(job_package_dir),
-            redis_address=repr(ip + ":" + str(port)),
+            redis_address=repr(f"{ip}:{str(port)}"),
             redis_password=repr(self._redis_password),
             driver_entry=self._job_info.driver_entry,
-            driver_args=driver_args)
+            driver_args=driver_args,
+        )
         with open(driver_entry_file, "w") as fp:
             fp.write(driver_code)
         return driver_entry_file

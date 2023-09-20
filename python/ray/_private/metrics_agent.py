@@ -196,14 +196,13 @@ class PrometheusServiceDiscoveryWriter(threading.Thread):
         """Return the content for Prometheus service discovery."""
         nodes = ray.nodes()
         metrics_export_addresses = [
-            "{}:{}".format(node["NodeManagerAddress"],
-                           node["MetricsExportPort"]) for node in nodes
+            f'{node["NodeManagerAddress"]}:{node["MetricsExportPort"]}'
+            for node in nodes
             if node["alive"] is True
         ]
         redis_client = services.create_redis_client(self.redis_address,
                                                     self.redis_password)
-        autoscaler_addr = redis_client.get("AutoscalerMetricsAddress")
-        if autoscaler_addr:
+        if autoscaler_addr := redis_client.get("AutoscalerMetricsAddress"):
             metrics_export_addresses.append(autoscaler_addr.decode("utf-8"))
         return json.dumps([{
             "labels": {
@@ -231,8 +230,9 @@ class PrometheusServiceDiscoveryWriter(threading.Thread):
 
     def get_temp_file_name(self):
         return os.path.join(
-            self.temp_dir, "{}_{}".format(
-                "tmp", ray.ray_constants.PROMETHEUS_SERVICE_DISCOVERY_FILE))
+            self.temp_dir,
+            f"tmp_{ray.ray_constants.PROMETHEUS_SERVICE_DISCOVERY_FILE}",
+        )
 
     def run(self):
         while True:
@@ -240,9 +240,9 @@ class PrometheusServiceDiscoveryWriter(threading.Thread):
             try:
                 self.write()
             except Exception as e:
-                logger.warning("Writing a service discovery file, {},"
-                               "failed."
-                               .format(self.writer.get_target_file_name()))
+                logger.warning(
+                    f"Writing a service discovery file, {self.writer.get_target_file_name()},failed."
+                )
                 logger.warning(traceback.format_exc())
                 logger.warning(f"Error message: {e}")
             time.sleep(self.default_service_discovery_flush_period)

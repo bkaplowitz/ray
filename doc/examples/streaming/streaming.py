@@ -55,7 +55,7 @@ class Reducer(object):
             for mapper in self.mappers
         ]
 
-        while len(count_ids) > 0:
+        while count_ids:
             finished, unfinished = ray.wait(count_ids)
             for count_id in finished:
                 for k, v in ray.get(count_id):
@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
     article_index = 0
     while True:
-        print("article index = {}".format(article_index))
+        print(f"article index = {article_index}")
         wordcounts = {}
         counts = ray.get([
             reducer.next_reduce_result.remote(article_index)

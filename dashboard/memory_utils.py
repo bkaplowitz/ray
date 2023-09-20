@@ -156,10 +156,7 @@ class MemoryTableEntry:
         actor_random_bits = object_ref_hex[TASKID_RANDOM_BITS_SIZE:
                                            TASKID_RANDOM_BITS_SIZE +
                                            ACTORID_RANDOM_BITS_SIZE]
-        if (random_bits == "f" * 16 and not actor_random_bits == "f" * 24):
-            return True
-        else:
-            return False
+        return random_bits == "f" * 16 and actor_random_bits != "f" * 24
 
     def as_dict(self):
         return {
@@ -279,7 +276,7 @@ class MemoryTable:
         for group_key, entries in group.items():
             self.group[group_key] = MemoryTable(
                 entries, group_by_type=None, sort_by_type=None)
-        for group_key, group_memory_table in self.group.items():
+        for group_memory_table in self.group.values():
             group_memory_table.summarize()
         return self
 
@@ -323,9 +320,9 @@ def construct_memory_table(workers_stats: List,
                 pid=pid)
             if memory_table_entry.is_valid():
                 memory_table_entries.append(memory_table_entry)
-    memory_table = MemoryTable(
-        memory_table_entries, group_by_type=group_by, sort_by_type=sort_by)
-    return memory_table
+    return MemoryTable(
+        memory_table_entries, group_by_type=group_by, sort_by_type=sort_by
+    )
 
 
 def track_reference_size(group):
@@ -407,11 +404,11 @@ entries per group...\n\n\n"
         summary = group["summary"]
         ref_size = track_reference_size(group)
         for key in summary:
-            if key == "total_object_size":
-                summary[key] = str(summary[key] / units[unit]) + f" {unit}"
-            else:
-                summary[key] = str(
-                    summary[key]) + f", ({ref_size[key] / units[unit]} {unit})"
+            summary[key] = (
+                f"{str(summary[key] / units[unit])} {unit}"
+                if key == "total_object_size"
+                else f"{str(summary[key])}, ({ref_size[key] / units[unit]} {unit})"
+            )
         mem += f"--- Summary for {group_by}: {key} ---\n"
         mem += summary_string\
             .format(*summary_labels)
@@ -448,7 +445,8 @@ entries per group...\n\n\n"
                 if not isinstance(object_ref_values[i], list):
                     object_ref_values[i] = [object_ref_values[i]]
                 object_ref_values[i].extend(
-                    ["" for x in range(num_lines - len(object_ref_values[i]))])
+                    ["" for _ in range(num_lines - len(object_ref_values[i]))]
+                )
             for i in range(num_lines):
                 row = [elem[i] for elem in object_ref_values]
                 mem += object_ref_string\

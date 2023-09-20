@@ -48,8 +48,7 @@ class ActorHead(dashboard_utils.DashboardHeadModule):
         if change.new:
             # TODO(fyrestone): Handle exceptions.
             node_id, node_info = change.new
-            address = "{}:{}".format(node_info["nodeManagerAddress"],
-                                     int(node_info["nodeManagerPort"]))
+            address = f'{node_info["nodeManagerAddress"]}:{int(node_info["nodeManagerPort"])}'
             options = (("grpc.enable_http_proxy", 0), )
             channel = aiogrpc.insecure_channel(address, options=options)
             stub = node_manager_pb2_grpc.NodeManagerServiceStub(channel)
@@ -125,8 +124,9 @@ class ActorHead(dashboard_utils.DashboardHeadModule):
                 # If actor is not new registered but updated, we only update
                 # states related fields.
                 if actor_table_data["state"] != "DEPENDENCIES_UNREADY":
-                    actor_id = actor_id.decode("UTF-8")[len(
-                        gcs_utils.TablePrefix_ACTOR_string + ":"):]
+                    actor_id = actor_id.decode("UTF-8")[
+                        len(f"{gcs_utils.TablePrefix_ACTOR_string}:") :
+                    ]
                     actor_table_data_copy = dict(DataSource.actors[actor_id])
                     for k in state_keys:
                         actor_table_data_copy[k] = actor_table_data[k]

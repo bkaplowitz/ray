@@ -17,7 +17,7 @@ def run_func(func, *args, **kwargs):
 
     # Inspect the stack to get calling example
     caller = inspect.stack()[1][3]
-    print("%s: %s" % (caller, str(result)))
+    print(f"{caller}: {str(result)}")
 
     return result
 

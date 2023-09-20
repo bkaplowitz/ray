@@ -27,9 +27,8 @@ def legacy_log_info_string(autoscaler, nodes):
 def info_string(autoscaler, nodes):
     suffix = ""
     if autoscaler.updaters:
-        suffix += " ({} updating)".format(len(autoscaler.updaters))
+        suffix += f" ({len(autoscaler.updaters)} updating)"
     if autoscaler.num_failed_updates:
-        suffix += " ({} failed to update)".format(
-            len(autoscaler.num_failed_updates))
+        suffix += f" ({len(autoscaler.num_failed_updates)} failed to update)"
 
-    return "{} nodes{}".format(len(nodes), suffix)
+    return f"{len(nodes)} nodes{suffix}"

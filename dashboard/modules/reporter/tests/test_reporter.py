@@ -46,12 +46,13 @@ def test_profiling(shutdown_only):
                 "Timed out while collecting profiling stats, "
                 f"launch_profiling: {launch_profiling}")
         launch_profiling = requests.get(
-            webui_url + "/api/launch_profiling",
+            f"{webui_url}/api/launch_profiling",
             params={
                 "ip": ray.nodes()[0]["NodeManagerAddress"],
                 "pid": actor_pid,
-                "duration": 5
-            }).json()
+                "duration": 5,
+            },
+        ).json()
         if launch_profiling["result"]:
             profiling_info = launch_profiling["data"]["profilingInfo"]
             break

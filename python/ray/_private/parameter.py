@@ -240,7 +240,7 @@ class RayParams:
         if enable_object_reconstruction:
             # Turn off object pinning.
             if self._system_config is None:
-                self._system_config = dict()
+                self._system_config = {}
             print(self._system_config)
             self._system_config["lineage_pinning_enabled"] = True
             self._system_config["free_objects_period_milliseconds"] = -1
@@ -285,10 +285,7 @@ class RayParams:
 
         def wrap_port(port):
             # 0 port means select a random port for the grpc server.
-            if port is None or port == 0:
-                return []
-            else:
-                return [port]
+            return [] if port is None or port == 0 else [port]
 
         # Create a dictionary of the component -> port mapping.
         pre_selected_ports = {
@@ -340,13 +337,13 @@ class RayParams:
                     port = int(port_str)
                 except ValueError as e:
                     raise ValueError(
-                        "worker_port_list must be a comma-separated " +
-                        "list of integers: {}".format(e)) from None
+                        f"worker_port_list must be a comma-separated list of integers: {e}"
+                    ) from None
 
                 if port < 1024 or port > 65535:
                     raise ValueError(
-                        "Ports in worker_port_list must be "
-                        "between 1024 and 65535. Got: {}".format(port))
+                        f"Ports in worker_port_list must be between 1024 and 65535. Got: {port}"
+                    )
 
         # Used primarily for testing.
         if os.environ.get("RAY_USE_RANDOM_PORTS", False):

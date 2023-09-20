@@ -80,25 +80,26 @@ class JobHead(dashboard_utils.DashboardHeadModule):
                 summary=list(DataSource.jobs.values()))
         else:
             return dashboard_utils.rest_response(
-                success=False, message="Unknown view {}".format(view))
+                success=False, message=f"Unknown view {view}"
+            )
 
     @routes.get("/jobs/{job_id}")
     @dashboard_utils.aiohttp_cache
     async def get_job(self, req) -> aiohttp.web.Response:
         job_id = req.match_info.get("job_id")
         view = req.query.get("view")
-        if view is None:
-            job_detail = {
-                "jobInfo": DataSource.jobs.get(job_id, {}),
-                "jobActors": DataSource.job_actors.get(job_id, {}),
-                "jobWorkers": DataSource.job_workers.get(job_id, []),
-            }
-            await GlobalSignals.job_info_fetched.send(job_detail)
+        if view is not None:
             return dashboard_utils.rest_response(
-                success=True, message="Job detail fetched.", detail=job_detail)
-        else:
-            return dashboard_utils.rest_response(
-                success=False, message="Unknown view {}".format(view))
+                success=False, message=f"Unknown view {view}"
+            )
+        job_detail = {
+            "jobInfo": DataSource.jobs.get(job_id, {}),
+            "jobActors": DataSource.job_actors.get(job_id, {}),
+            "jobWorkers": DataSource.job_workers.get(job_id, []),
+        }
+        await GlobalSignals.job_info_fetched.send(job_detail)
+        return dashboard_utils.rest_response(
+            success=True, message="Job detail fetched.", detail=job_detail)
 
     async def _update_jobs(self):
         # Subscribe job channel.
@@ -117,18 +118,17 @@ class JobHead(dashboard_utils.DashboardHeadModule):
                 request = gcs_service_pb2.GetAllJobInfoRequest()
                 reply = await self._gcs_job_info_stub.GetAllJobInfo(
                     request, timeout=5)
-                if reply.status.code == 0:
-                    jobs = {}
-                    for job_table_data in reply.job_info_list:
-                        data = job_table_data_to_dict(job_table_data)
-                        jobs[data["jobId"]] = data
-                    # Update jobs.
-                    DataSource.jobs.reset(jobs)
-                    logger.info("Received %d job info from GCS.", len(jobs))
-                    break
-                else:
+                if reply.status.code != 0:
                     raise Exception(
                         f"Failed to GetAllJobInfo: {reply.status.message}")
+                jobs = {}
+                for job_table_data in reply.job_info_list:
+                    data = job_table_data_to_dict(job_table_data)
+                    jobs[data["jobId"]] = data
+                # Update jobs.
+                DataSource.jobs.reset(jobs)
+                logger.info("Received %d job info from GCS.", len(jobs))
+                break
             except Exception:
                 logger.exception("Error Getting all job info from GCS.")
                 await asyncio.sleep(

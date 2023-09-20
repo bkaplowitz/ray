@@ -254,7 +254,7 @@ def _as_config_file(cluster_config: Union[dict, str]) -> Iterator[str]:
         tmp.flush()
         cluster_config = tmp.name
     if not os.path.exists(cluster_config):
-        raise ValueError("Cluster config not found {}".format(cluster_config))
+        raise ValueError(f"Cluster config not found {cluster_config}")
     yield cluster_config
 
 

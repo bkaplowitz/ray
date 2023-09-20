@@ -6,26 +6,22 @@ from ray.util.placement_group import placement_group, remove_placement_group
 import time
 import tqdm
 
-if "SMOKE_TEST" in os.environ:
-    MAX_PLACEMENT_GROUPS = 20
-else:
-    MAX_PLACEMENT_GROUPS = 1000
+MAX_PLACEMENT_GROUPS = 20 if "SMOKE_TEST" in os.environ else 1000
 
 
 def test_many_placement_groups():
     # @ray.remote(num_cpus=1, resources={"node": 0.02})
+
     @ray.remote
     class C1:
         def ping(self):
             return "pong"
 
-    # @ray.remote(num_cpus=1)
     @ray.remote
     class C2:
         def ping(self):
             return "pong"
 
-    # @ray.remote(resources={"node": 0.02})
     @ray.remote
     class C3:
         def ping(self):
@@ -45,10 +41,13 @@ def test_many_placement_groups():
 
     actors = []
     for pg in tqdm.tqdm(pgs, desc="Scheduling tasks"):
-        actors.append(C1.options(placement_group=pg).remote())
-        actors.append(C2.options(placement_group=pg).remote())
-        actors.append(C3.options(placement_group=pg).remote())
-
+        actors.extend(
+            (
+                C1.options(placement_group=pg).remote(),
+                C2.options(placement_group=pg).remote(),
+                C3.options(placement_group=pg).remote(),
+            )
+        )
     not_ready = [actor.ping.remote() for actor in actors]
     for _ in tqdm.trange(len(actors)):
         ready, not_ready = ray.wait(not_ready)

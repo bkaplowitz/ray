@@ -57,10 +57,7 @@ def freq_of_dicts(dicts: List[Dict],
             corresponding frequency count.
     """
     freqs = Counter(map(lambda d: serializer(d), dicts))
-    as_list = []
-    for as_set, count in freqs.items():
-        as_list.append((deserializer(as_set), count))
-    return as_list
+    return [(deserializer(as_set), count) for as_set, count in freqs.items()]
 
 
 class LoadMetrics:
@@ -124,7 +121,7 @@ class LoadMetrics:
 
     def mark_active(self, ip):
         assert ip is not None, "IP should be known at this time"
-        logger.debug("Node {} is newly setup, treating as active".format(ip))
+        logger.debug(f"Node {ip} is newly setup, treating as active")
         self.last_heartbeat_time_by_ip[ip] = time.time()
 
     def is_active(self, ip):
@@ -239,9 +236,9 @@ class LoadMetrics:
         total_resources = reduce(add_resources,
                                  self.static_resources_by_ip.values()
                                  ) if self.static_resources_by_ip else {}
-        out = "{} CPUs".format(int(total_resources.get("CPU", 0)))
+        out = f'{int(total_resources.get("CPU", 0))} CPUs'
         if "GPU" in total_resources:
-            out += ", {} GPUs".format(int(total_resources["GPU"]))
+            out += f', {int(total_resources["GPU"])} GPUs'
         return out
 
     def summary(self):
@@ -308,7 +305,8 @@ class LoadMetrics:
 
     def info_string(self):
         return " - " + "\n - ".join(
-            ["{}: {}".format(k, v) for k, v in sorted(self._info().items())])
+            [f"{k}: {v}" for k, v in sorted(self._info().items())]
+        )
 
     def _info(self):
         resources_used, resources_total = self._get_resource_usage()

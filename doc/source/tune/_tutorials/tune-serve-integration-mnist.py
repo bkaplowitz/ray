@@ -189,7 +189,7 @@ class ConvNet(nn.Module):
 def train(model, optimizer, train_loader, device=None):
     device = device or torch.device("cpu")
     model.train()
-    for batch_idx, (data, target) in enumerate(train_loader):
+    for data, target in train_loader:
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output = model(data)
@@ -204,7 +204,7 @@ def test(model, data_loader, device=None):
     correct = 0
     total = 0
     with torch.no_grad():
-        for batch_idx, (data, target) in enumerate(data_loader):
+        for data, target in data_loader:
             data, target = data.to(device), target.to(device)
             outputs = model(data)
             _, predicted = torch.max(outputs.data, 1)
@@ -314,18 +314,17 @@ def tune_from_scratch(num_samples=10, num_epochs=10, gpus_per_trial=0., day=0):
             start_model=None,
             data_fn=data_interface.get_data,
             num_epochs=num_epochs,
-            use_gpus=True if gpus_per_trial > 0 else False,
-            day=day),
-        resources_per_trial={
-            "cpu": 1,
-            "gpu": gpus_per_trial
-        },
+            use_gpus=gpus_per_trial > 0,
+            day=day,
+        ),
+        resources_per_trial={"cpu": 1, "gpu": gpus_per_trial},
         config=config,
         num_samples=num_samples,
         scheduler=scheduler,
         progress_reporter=reporter,
         verbose=0,
-        name="tune_serve_mnist_fromscratch")
+        name="tune_serve_mnist_fromscratch",
+    )
 
     best_trial = analysis.get_best_trial("mean_accuracy", "max", "last")
     best_accuracy = best_trial.metric_analysis["mean_accuracy"]["last"]
@@ -378,18 +377,17 @@ def tune_from_existing(start_model,
             start_model=start_model,
             data_fn=data_interface.get_incremental_data,
             num_epochs=num_epochs,
-            use_gpus=True if gpus_per_trial > 0 else False,
-            day=day),
-        resources_per_trial={
-            "cpu": 1,
-            "gpu": gpus_per_trial
-        },
+            use_gpus=gpus_per_trial > 0,
+            day=day,
+        ),
+        resources_per_trial={"cpu": 1, "gpu": gpus_per_trial},
         config=config,
         num_samples=num_samples,
         scheduler=scheduler,
         progress_reporter=reporter,
         verbose=0,
-        name="tune_serve_mnist_fromsexisting")
+        name="tune_serve_mnist_fromsexisting",
+    )
 
     best_trial = analysis.get_best_trial("mean_accuracy", "max", "last")
     best_accuracy = best_trial.metric_analysis["mean_accuracy"]["last"]
@@ -446,7 +444,7 @@ class MNISTDeployment:
 # model to this directory. We then update the deployment to the new version.
 def serve_new_model(model_dir, checkpoint, config, metrics, day,
                     use_gpu=False):
-    print("Serving checkpoint: {}".format(checkpoint))
+    print(f"Serving checkpoint: {checkpoint}")
 
     checkpoint_path = _move_checkpoint_to_model_dir(model_dir, checkpoint,
                                                     config, metrics)
@@ -610,18 +608,18 @@ if __name__ == "__main__":
         except:  # noqa: E722
             pred = -1
 
-        print("Querying model with example #{}. "
-              "Label = {}, Response = {}, Correct = {}".format(
-                  args.query, label, pred, label == pred))
+        print(
+            f"Querying model with example #{args.query}. Label = {label}, Response = {pred}, Correct = {label == pred}"
+        )
         sys.exit(0)
 
     gpus_per_trial = 0.5 if not args.smoke_test else 0.
-    serve_gpu = True if gpus_per_trial > 0 else False
+    serve_gpu = gpus_per_trial > 0
     num_samples = 8 if not args.smoke_test else 1
     num_epochs = 10 if not args.smoke_test else 1
 
     if args.from_scratch:  # train everyday from scratch
-        print("Start training job from scratch on day {}.".format(args.day))
+        print(f"Start training job from scratch on day {args.day}.")
         acc, config, best_checkpoint, num_examples = tune_from_scratch(
             num_samples, num_epochs, gpus_per_trial, day=args.day)
         print("Trained day {} from scratch on {} samples. "

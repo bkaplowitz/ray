@@ -4,11 +4,7 @@ import time
 
 
 def num_alive_nodes():
-    n = 0
-    for node in ray.nodes():
-        if node["Alive"]:
-            n += 1
-    return n
+    return sum(1 for node in ray.nodes() if node["Alive"])
 
 
 @click.command()

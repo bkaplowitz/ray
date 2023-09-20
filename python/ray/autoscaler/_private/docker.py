@@ -36,11 +36,11 @@ def validate_docker_config(config: Dict[str, Any]) -> None:
     worker_docker_image = config["docker"].get("worker_image", docker_image)
 
     image_present = docker_image or (head_docker_image and worker_docker_image)
-    if (not cname) and (not image_present):
-        return
-    else:
+    if cname or image_present:
         assert cname and image_present, "Must provide a container & image name"
 
+    else:
+        return
     return None
 
 
@@ -90,11 +90,14 @@ def docker_start_cmds(user, image, mount_dict, container_name, user_options,
     docker_mount_prefix = get_docker_host_mount_location(cluster_name)
     mount = {f"{docker_mount_prefix}/{dst}": dst for dst in mount_dict}
 
-    mount_flags = " ".join([
-        "-v {src}:{dest}".format(
-            src=k, dest=v.replace("~/", home_directory + "/"))
-        for k, v in mount.items()
-    ])
+    mount_flags = " ".join(
+        [
+            "-v {src}:{dest}".format(
+                src=k, dest=v.replace("~/", f"{home_directory}/")
+            )
+            for k, v in mount.items()
+        ]
+    )
 
     # for click, used in ray cli
     env_vars = {"LC_ALL": "C.UTF-8", "LANG": "C.UTF-8"}
@@ -103,8 +106,17 @@ def docker_start_cmds(user, image, mount_dict, container_name, user_options,
 
     user_options_str = " ".join(user_options)
     docker_run = [
-        docker_cmd, "run", "--rm", "--name {}".format(container_name), "-d",
-        "-it", mount_flags, env_flags, user_options_str, "--net=host", image,
-        "bash"
+        docker_cmd,
+        "run",
+        "--rm",
+        f"--name {container_name}",
+        "-d",
+        "-it",
+        mount_flags,
+        env_flags,
+        user_options_str,
+        "--net=host",
+        image,
+        "bash",
     ]
     return " ".join(docker_run)

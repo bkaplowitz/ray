@@ -56,9 +56,7 @@ def _release_build():
 
 def _valid_branch():
     branch = _get_branch()
-    if branch is None:
-        return False
-    return branch == "master" or _release_build()
+    return False if branch is None else branch == "master" or _release_build()
 
 
 def _get_curr_dir():
@@ -131,11 +129,10 @@ def _build_cpu_gpu_images(image_name, no_cache=True) -> List[str]:
                       "Python 3.9")
                 continue
 
-            build_args = {}
-            build_args["PYTHON_VERSION"] = py_version
-            # I.e. "-py36"[-1] == 6
-            build_args["PYTHON_MINOR_VERSION"] = py_name[-1]
-
+            build_args = {
+                "PYTHON_VERSION": py_version,
+                "PYTHON_MINOR_VERSION": py_name[-1],
+            }
             if image_name == "base-deps":
                 build_args["BASE_IMAGE"] = (
                     "nvidia/cuda:11.2.0-cudnn8-devel-ubuntu18.04"
@@ -184,15 +181,14 @@ def _build_cpu_gpu_images(image_name, no_cache=True) -> List[str]:
                 except Exception as e:
                     print(f"FAILURE with error {e}")
 
-                if len(DOCKER_CLIENT.api.images(tagged_name)) == 0:
-                    print(f"ERROR building: {tagged_name}. Output below:")
-                    print(*cmd_output, sep="\n")
-                    if (i == 1):
-                        raise Exception("FAILED TO BUILD IMAGE")
-                    print("TRYING AGAIN")
-                else:
+                if len(DOCKER_CLIENT.api.images(tagged_name)) != 0:
                     break
 
+                print(f"ERROR building: {tagged_name}. Output below:")
+                print(*cmd_output, sep="\n")
+                if (i == 1):
+                    raise Exception("FAILED TO BUILD IMAGE")
+                print("TRYING AGAIN")
             print("BUILT: ", tagged_name)
             built_images.append(tagged_name)
     return built_images

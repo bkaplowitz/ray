@@ -68,9 +68,9 @@ class NodeTracker:
             address and type of a failed node.
         """
         failed_nodes = self.node_mapping.keys() - non_failed_ids
-        failed_info = []
-        # Returning the list in order is important for display purposes.
-        for node_id in filter(lambda node_id: node_id in failed_nodes,
-                              self.lru_order):
-            failed_info.append(self.node_mapping[node_id])
-        return failed_info
+        return [
+            self.node_mapping[node_id]
+            for node_id in filter(
+                lambda node_id: node_id in failed_nodes, self.lru_order
+            )
+        ]

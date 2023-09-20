@@ -32,18 +32,15 @@ class JobConfig:
                  client_job=False,
                  metadata=None,
                  ray_namespace=None):
-        if worker_env is None:
-            self.worker_env = dict()
-        else:
-            self.worker_env = worker_env
+        self.worker_env = {} if worker_env is None else worker_env
         self.num_java_workers_per_process = num_java_workers_per_process
         self.jvm_options = jvm_options or []
         self.code_search_path = code_search_path or []
         # It's difficult to find the error that caused by the
         # code_search_path is a string. So we assert here.
         assert isinstance(self.code_search_path, (list, tuple)), \
-            f"The type of code search path is incorrect: " \
-            f"{type(code_search_path)}"
+                f"The type of code search path is incorrect: " \
+                f"{type(code_search_path)}"
         self.client_job = client_job
         self.metadata = metadata or {}
         self.ray_namespace = ray_namespace
@@ -68,7 +65,7 @@ class JobConfig:
                 or {})
         else:
             self._parsed_runtime_env = runtime_support.RuntimeEnvDict({})
-        self.runtime_env = runtime_env or dict()
+        self.runtime_env = runtime_env or {}
         self._cached_pb = None
 
     def set_ray_namespace(self, ray_namespace: str) -> None:
@@ -99,9 +96,7 @@ class JobConfig:
 
     def get_runtime_env_uris(self):
         """Get the uris of runtime environment"""
-        if self.runtime_env.get("uris"):
-            return self.runtime_env.get("uris")
-        return []
+        return self.runtime_env.get("uris") if self.runtime_env.get("uris") else []
 
     def set_runtime_env_uris(self, uris):
         self.runtime_env["uris"] = uris

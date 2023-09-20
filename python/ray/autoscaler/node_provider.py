@@ -105,7 +105,7 @@ class NodeProvider:
             else:
                 known_msg = (
                     f"Worker external IP: {list(self._external_ip_cache)}")
-            raise ValueError(f"ip {ip_address} not found. " + known_msg)
+            raise ValueError(f"ip {ip_address} not found. {known_msg}")
 
         return find_node_id()
 
@@ -136,8 +136,7 @@ class NodeProvider:
         mapping from deleted node ids to node metadata.
         """
         for node_id in node_ids:
-            logger.info("NodeProvider: "
-                        "{}: Terminating node".format(node_id))
+            logger.info(f"NodeProvider: {node_id}: Terminating node")
             self.terminate_node(node_id)
         return None
 

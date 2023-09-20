@@ -24,19 +24,18 @@ def get_conda_activate_commands(conda_env_name: str) -> List[str]:
                             or RAY_CONDA_HOME in os.environ):
         conda_path = get_conda_bin_executable("conda")
         activate_conda_env = [
-            ". {}/../etc/profile.d/conda.sh".format(
-                os.path.dirname(conda_path))
+            f". {os.path.dirname(conda_path)}/../etc/profile.d/conda.sh"
         ]
-        activate_conda_env += ["conda activate {} 1>&2".format(conda_env_name)]
+        activate_conda_env += [f"conda activate {conda_env_name} 1>&2"]
 
     else:
         activate_path = get_conda_bin_executable("activate")
         # in case os name is not 'nt', we are not running on windows. Introduce
         # bash command otherwise.
         if os.name != "nt":
-            return ["source %s %s 1>&2" % (activate_path, conda_env_name)]
+            return [f"source {activate_path} {conda_env_name} 1>&2"]
         else:
-            return ["conda activate %s" % (conda_env_name)]
+            return [f"conda activate {conda_env_name}"]
     return activate_conda_env
 
 
@@ -50,9 +49,8 @@ def get_conda_bin_executable(executable_name: str) -> str:
     ``RAY_CONDA_HOME`` is unspecified, this method simply returns the passed-in
     executable name.
     """
-    conda_home = os.environ.get(RAY_CONDA_HOME)
-    if conda_home:
-        return os.path.join(conda_home, "bin/%s" % executable_name)
+    if conda_home := os.environ.get(RAY_CONDA_HOME):
+        return os.path.join(conda_home, f"bin/{executable_name}")
     # Use CONDA_EXE as per https://github.com/conda/conda/issues/7126
     if "CONDA_EXE" in os.environ:
         conda_bin_dir = os.path.dirname(os.environ["CONDA_EXE"])
@@ -110,7 +108,6 @@ def get_or_create_conda_env(conda_env_path: str,
                     "--prefix", env_name
                 ],
                 stream_output=True)
-        return env_name
     else:
         env_names = [os.path.basename(env) for env in envs]
         if env_name not in env_names:
@@ -121,7 +118,8 @@ def get_or_create_conda_env(conda_env_path: str,
                     conda_env_path
                 ],
                 stream_output=True)
-        return env_name
+
+    return env_name
 
 
 class ShellCommandException(Exception):
@@ -153,7 +151,7 @@ def exec_cmd(cmd: List[str],
         child.communicate()
         exit_code = child.wait()
         if throw_on_error and exit_code != 0:
-            raise ShellCommandException("Non-zero exitcode: %s" % (exit_code))
+            raise ShellCommandException(f"Non-zero exitcode: {exit_code}")
         return exit_code
     else:
         child = subprocess.Popen(

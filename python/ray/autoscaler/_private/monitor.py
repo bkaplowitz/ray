@@ -62,19 +62,25 @@ def parse_resource_demands(resource_load_by_shape):
         for resource_demand_pb in list(
                 resource_load_by_shape.resource_demands):
             request_shape = dict(resource_demand_pb.shape)
-            for _ in range(resource_demand_pb.num_ready_requests_queued):
-                waiting_bundles.append(request_shape)
-            for _ in range(resource_demand_pb.num_infeasible_requests_queued):
-                infeasible_bundles.append(request_shape)
-
+            waiting_bundles.extend(
+                request_shape
+                for _ in range(resource_demand_pb.num_ready_requests_queued)
+            )
+            infeasible_bundles.extend(
+                request_shape
+                for _ in range(
+                    resource_demand_pb.num_infeasible_requests_queued
+                )
+            )
             # Infeasible and ready states for tasks are (logically)
             # mutually exclusive.
             if resource_demand_pb.num_infeasible_requests_queued > 0:
                 backlog_queue = infeasible_bundles
             else:
                 backlog_queue = waiting_bundles
-            for _ in range(resource_demand_pb.backlog_size):
-                backlog_queue.append(request_shape)
+            backlog_queue.extend(
+                request_shape for _ in range(resource_demand_pb.backlog_size)
+            )
             if len(waiting_bundles+infeasible_bundles) > \
                     AUTOSCALER_MAX_RESOURCE_DEMAND_VECTOR_SIZE:
                 break
@@ -117,7 +123,7 @@ class Monitor:
         options = (("grpc.enable_http_proxy", 0), )
         gcs_channel = grpc.insecure_channel(gcs_address, options=options)
         self.gcs_node_resources_stub = \
-            gcs_service_pb2_grpc.NodeResourceInfoGcsServiceStub(gcs_channel)
+                gcs_service_pb2_grpc.NodeResourceInfoGcsServiceStub(gcs_channel)
 
         # Set the redis client and mode so _internal_kv works for autoscaler.
         worker = ray.worker.global_worker
@@ -143,8 +149,8 @@ class Monitor:
             # introduced
             try:
                 logger.info(
-                    "Starting autoscaler metrics server on port {}".format(
-                        AUTOSCALER_METRIC_PORT))
+                    f"Starting autoscaler metrics server on port {AUTOSCALER_METRIC_PORT}"
+                )
                 prometheus_client.start_http_server(
                     AUTOSCALER_METRIC_PORT,
                     registry=self.prom_metrics.registry)
@@ -203,9 +209,9 @@ class Monitor:
         """Fetches resource requests from the internal KV and updates load."""
         if not _internal_kv_initialized():
             return
-        data = _internal_kv_get(
-            ray.ray_constants.AUTOSCALER_RESOURCE_REQUEST_CHANNEL)
-        if data:
+        if data := _internal_kv_get(
+            ray.ray_constants.AUTOSCALER_RESOURCE_REQUEST_CHANNEL
+        ):
             try:
                 resource_request = json.loads(data)
                 self.load_metrics.set_resource_requests(resource_request)
@@ -234,7 +240,7 @@ class Monitor:
                     "autoscaler_report"] = self.autoscaler.summary()._asdict()
 
                 for msg in self.event_summarizer.summary():
-                    logger.info(":event_summary:{}".format(msg))
+                    logger.info(f":event_summary:{msg}")
                 self.event_summarizer.clear()
 
             as_json = json.dumps(status)

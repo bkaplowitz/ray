@@ -159,9 +159,9 @@ class ImportThread:
          run_on_other_drivers) = self.redis_client.hmget(
              key, ["job_id", "function", "run_on_other_drivers"])
 
-        if self.worker.mode == ray.SCRIPT_MODE:
-            if (run_on_other_drivers == b"False"
+        if (run_on_other_drivers == b"False"
                     or job_id == self.worker.current_job_id.binary()):
+            if self.worker.mode == ray.SCRIPT_MODE:
                 return
 
         try:

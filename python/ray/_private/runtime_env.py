@@ -77,7 +77,7 @@ class RuntimeEnvDict:
         # Simple dictionary with all options validated. This will always
         # contain all supported keys; values will be set to None if
         # unspecified. However, if all values are None this is set to {}.
-        self._dict = dict()
+        self._dict = {}
 
         if "working_dir" in runtime_env_json:
             self._dict["working_dir"] = runtime_env_json["working_dir"]
@@ -98,7 +98,7 @@ class RuntimeEnvDict:
             conda = runtime_env_json["conda"]
             if isinstance(conda, str):
                 yaml_file = Path(conda)
-                if yaml_file.suffix in (".yaml", ".yml"):
+                if yaml_file.suffix in {".yaml", ".yml"}:
                     if working_dir and not yaml_file.is_absolute():
                         yaml_file = working_dir / yaml_file
                     if not yaml_file.is_file():
@@ -166,9 +166,10 @@ class RuntimeEnvDict:
         if "env_vars" in runtime_env_json:
             env_vars = runtime_env_json["env_vars"]
             self._dict["env_vars"] = env_vars
-            if not (isinstance(env_vars, dict) and all(
-                    isinstance(k, str) and isinstance(v, str)
-                    for (k, v) in env_vars.items())):
+            if not isinstance(env_vars, dict) or not all(
+                isinstance(k, str) and isinstance(v, str)
+                for (k, v) in env_vars.items()
+            ):
                 raise TypeError("runtime_env['env_vars'] must be of type"
                                 "Dict[str, str]")
 
@@ -187,9 +188,8 @@ class RuntimeEnvDict:
 
         if "_ray_commit" in runtime_env_json:
             self._dict["_ray_commit"] = runtime_env_json["_ray_commit"]
-        else:
-            if self._dict.get("pip") or self._dict.get("conda"):
-                self._dict["_ray_commit"] = ray.__commit__
+        elif self._dict.get("pip") or self._dict.get("conda"):
+            self._dict["_ray_commit"] = ray.__commit__
 
         # Used for testing wheels that have not yet been merged into master.
         # If this is set to True, then we do not inject Ray into the conda
@@ -386,7 +386,6 @@ def get_project_package_name(working_dir: str, py_modules: List[str],
     Returns:
         Package name as a string.
     """
-    RAY_PKG_PREFIX = "_ray_pkg_"
     hash_val = None
     if working_dir:
         if not isinstance(working_dir, str):
@@ -408,7 +407,7 @@ def get_project_package_name(working_dir: str, py_modules: List[str],
                              " directory")
         hash_val = _xor_bytes(
             hash_val, _hash_modules(module_dir, module_dir.parent, None))
-    return RAY_PKG_PREFIX + hash_val.hex() + ".zip" if hash_val else None
+    return f"_ray_pkg_{hash_val.hex()}.zip" if hash_val else None
 
 
 def create_project_package(working_dir: str, py_modules: List[str],
@@ -456,15 +455,14 @@ def fetch_package(pkg_uri: str) -> int:
         return local_dir
     logger.debug("Fetch packge")
     (protocol, pkg_name) = _parse_uri(pkg_uri)
-    if protocol in (Protocol.GCS, Protocol.PIN_GCS):
-        code = _internal_kv_get(pkg_uri)
-        if code is None:
-            raise IOError("Fetch uri failed")
-        code = code or b""
-        pkg_file.write_bytes(code)
-    else:
+    if protocol not in (Protocol.GCS, Protocol.PIN_GCS):
         raise NotImplementedError(f"Protocol {protocol} is not supported")
 
+    code = _internal_kv_get(pkg_uri)
+    if code is None:
+        raise IOError("Fetch uri failed")
+    code = code or b""
+    pkg_file.write_bytes(code)
     logger.debug(f"Unpack {pkg_file} to {local_dir}")
     with ZipFile(str(pkg_file), "r") as zip_ref:
         zip_ref.extractall(local_dir)
@@ -536,8 +534,7 @@ def rewrite_runtime_env_uris(job_config: JobConfig) -> None:
         if excludes is None:
             excludes = []
         pkg_name = get_project_package_name(working_dir, py_modules, excludes)
-        job_config.set_runtime_env_uris(
-            [Protocol.GCS.value + "://" + pkg_name])
+        job_config.set_runtime_env_uris([f"{Protocol.GCS.value}://{pkg_name}"])
 
 
 def upload_runtime_env_package_if_needed(job_config: JobConfig) -> None:
@@ -589,7 +586,7 @@ def ensure_runtime_env_setup(pkg_uris: List[str]) -> Optional[str]:
         # For each node, the package will only be downloaded one time
         # Locking to avoid multiple process download concurrently
         pkg_file = Path(_get_local_path(pkg_uri))
-        with FileLock(str(pkg_file) + ".lock"):
+        with FileLock(f"{str(pkg_file)}.lock"):
             pkg_dir = fetch_package(pkg_uri)
         sys.path.insert(0, str(pkg_dir))
     # Right now, multiple pkg_uris are not supported correctly.

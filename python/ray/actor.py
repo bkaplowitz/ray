@@ -51,7 +51,7 @@ def method(*args, **kwargs):
         num_returns: The number of object refs that should be returned by
             invocations of this actor method.
     """
-    assert len(args) == 0
+    assert not args
     assert len(kwargs) == 1
     assert "num_returns" in kwargs
     num_returns = kwargs["num_returns"]
@@ -103,10 +103,7 @@ class ActorMethod:
 
         # Acquire a hard ref to the actor, this is useful mainly when passing
         # actor method handles to remote functions.
-        if hardref:
-            self._actor_hard_ref = actor
-        else:
-            self._actor_hard_ref = None
+        self._actor_hard_ref = actor if hardref else None
 
     def __call__(self, *args, **kwargs):
         raise TypeError("Actor methods cannot be called directly. Instead "
@@ -316,7 +313,7 @@ class ActorClass:
         __ray_metadata__: Contains metadata for the actor.
     """
 
-    def __init__(cls, name, bases, attr):
+    def __init__(self, name, bases, attr):
         """Prevents users from directly inheriting from an ActorClass.
 
         This will be called when a class is defined with an ActorClass object
@@ -576,11 +573,7 @@ class ActorClass:
         is_asyncio = actor_has_async_methods
 
         if max_concurrency is None:
-            if is_asyncio:
-                max_concurrency = 1000
-            else:
-                max_concurrency = 1
-
+            max_concurrency = 1000 if is_asyncio else 1
         if max_concurrency < 1:
             raise ValueError("max_concurrency must be >= 1")
 
@@ -690,7 +683,7 @@ class ActorClass:
         # LOCAL_MODE cannot handle cross_language
         if worker.mode == ray.LOCAL_MODE:
             assert not meta.is_cross_language, \
-                "Cross language ActorClass cannot be executed locally."
+                    "Cross language ActorClass cannot be executed locally."
 
         # Export the actor.
         if not meta.is_cross_language and (meta.last_export_session_and_job !=
@@ -761,13 +754,12 @@ class ActorClass:
             placement_group.id,
             placement_group_bundle_index,
             placement_group_capture_child_tasks,
-            # Store actor_method_cpu in actor handle's extension data.
             extension_data=str(actor_method_cpu),
             runtime_env_dict=runtime_env_dict,
-            override_environment_variables=override_environment_variables
-            or dict())
+            override_environment_variables=override_environment_variables or {},
+        )
 
-        actor_handle = ActorHandle(
+        return ActorHandle(
             meta.language,
             actor_id,
             meta.method_meta.decorators,
@@ -776,9 +768,8 @@ class ActorClass:
             actor_method_cpu,
             meta.actor_creation_function_descriptor,
             worker.current_session_and_job,
-            original_handle=True)
-
-        return actor_handle
+            original_handle=True,
+        )
 
 
 class ActorHandle:
@@ -926,16 +917,19 @@ class ActorHandle:
                                  f"no attribute '{item}'")
         if item in ["__ray_terminate__", "__ray_checkpoint__"]:
 
+
+
+
             class FakeActorMethod(object):
                 def __call__(self, *args, **kwargs):
                     raise TypeError(
-                        "Actor methods cannot be called directly. Instead "
-                        "of running 'object.{}()', try 'object.{}.remote()'.".
-                        format(item, item))
+                        f"Actor methods cannot be called directly. Instead of running 'object.{item}()', try 'object.{item}.remote()'."
+                    )
 
                 def remote(self, *args, **kwargs):
                     logger.warning(f"Actor method {item} is not "
                                    "supported by cross language.")
+
 
             return FakeActorMethod()
 
@@ -970,24 +964,22 @@ class ActorHandle:
         worker = ray.worker.global_worker
         worker.check_connected()
 
-        if hasattr(worker, "core_worker"):
-            # Non-local mode
-            state = worker.core_worker.serialize_actor_handle(
-                self._ray_actor_id)
-        else:
-            # Local mode
-            state = ({
-                "actor_language": self._ray_actor_language,
-                "actor_id": self._ray_actor_id,
-                "method_decorators": self._ray_method_decorators,
-                "method_signatures": self._ray_method_signatures,
-                "method_num_returns": self._ray_method_num_returns,
-                "actor_method_cpus": self._ray_actor_method_cpus,
-                "actor_creation_function_descriptor": self.
-                _ray_actor_creation_function_descriptor,
-            }, None)
-
-        return state
+        return (
+            worker.core_worker.serialize_actor_handle(self._ray_actor_id)
+            if hasattr(worker, "core_worker")
+            else (
+                {
+                    "actor_language": self._ray_actor_language,
+                    "actor_id": self._ray_actor_id,
+                    "method_decorators": self._ray_method_decorators,
+                    "method_signatures": self._ray_method_signatures,
+                    "method_num_returns": self._ray_method_num_returns,
+                    "actor_method_cpus": self._ray_actor_method_cpus,
+                    "actor_creation_function_descriptor": self._ray_actor_creation_function_descriptor,
+                },
+                None,
+            )
+        )
 
     @classmethod
     def _deserialization_helper(cls, state, outer_object_ref=None):
@@ -1106,24 +1098,22 @@ def exit_actor():
             worker is not an actor.
     """
     worker = ray.worker.global_worker
-    if worker.mode == ray.WORKER_MODE and not worker.actor_id.is_nil():
-        # Intentionally disconnect the core worker from the raylet so the
-        # raylet won't push an error message to the driver.
-        ray.worker.disconnect()
-        # Disconnect global state from GCS.
-        ray.state.state.disconnect()
-
-        # In asyncio actor mode, we can't raise SystemExit because it will just
-        # quit the asycnio event loop thread, not the main thread. Instead, we
-        # raise a custom error to the main thread to tell it to exit.
-        if worker.core_worker.current_actor_is_asyncio():
-            raise AsyncioActorExit()
-
-        # Set a flag to indicate this is an intentional actor exit. This
-        # reduces log verbosity.
-        exit = SystemExit(0)
-        exit.is_ray_terminate = True
-        raise exit
-        assert False, "This process should have terminated."
-    else:
+    if worker.mode != ray.WORKER_MODE or worker.actor_id.is_nil():
         raise TypeError("exit_actor called on a non-actor worker.")
+    # Intentionally disconnect the core worker from the raylet so the
+    # raylet won't push an error message to the driver.
+    ray.worker.disconnect()
+    # Disconnect global state from GCS.
+    ray.state.state.disconnect()
+
+    # In asyncio actor mode, we can't raise SystemExit because it will just
+    # quit the asycnio event loop thread, not the main thread. Instead, we
+    # raise a custom error to the main thread to tell it to exit.
+    if worker.core_worker.current_actor_is_asyncio():
+        raise AsyncioActorExit()
+
+    # Set a flag to indicate this is an intentional actor exit. This
+    # reduces log verbosity.
+    exit = SystemExit(0)
+    exit.is_ray_terminate = True
+    raise exit

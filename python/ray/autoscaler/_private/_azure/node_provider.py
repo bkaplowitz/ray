@@ -60,16 +60,15 @@ class AzureNodeProvider(NodeProvider):
         except CLIError as e:
             if str(e) != "Please run 'az login' to setup account.":
                 raise
-            else:
-                logger.info("CLI profile authentication failed. Trying MSI")
+            logger.info("CLI profile authentication failed. Trying MSI")
 
-                credentials = MSIAuthentication()
-                self.compute_client = ComputeManagementClient(
-                    credentials=credentials, **kwargs)
-                self.network_client = NetworkManagementClient(
-                    credentials=credentials, **kwargs)
-                self.resource_client = ResourceManagementClient(
-                    credentials=credentials, **kwargs)
+            credentials = MSIAuthentication()
+            self.compute_client = ComputeManagementClient(
+                credentials=credentials, **kwargs)
+            self.network_client = NetworkManagementClient(
+                credentials=credentials, **kwargs)
+            self.resource_client = ResourceManagementClient(
+                credentials=credentials, **kwargs)
 
         self.lock = RLock()
 
@@ -162,15 +161,17 @@ class AzureNodeProvider(NodeProvider):
 
     def external_ip(self, node_id):
         """Returns the external ip of the given node."""
-        ip = (self._get_cached_node(node_id=node_id)["external_ip"]
-              or self._get_node(node_id=node_id)["external_ip"])
-        return ip
+        return (
+            self._get_cached_node(node_id=node_id)["external_ip"]
+            or self._get_node(node_id=node_id)["external_ip"]
+        )
 
     def internal_ip(self, node_id):
         """Returns the internal ip (Ray ip) of the given node."""
-        ip = (self._get_cached_node(node_id=node_id)["internal_ip"]
-              or self._get_node(node_id=node_id)["internal_ip"])
-        return ip
+        return (
+            self._get_cached_node(node_id=node_id)["internal_ip"]
+            or self._get_node(node_id=node_id)["internal_ip"]
+        )
 
     def create_node(self, node_config, tags, count):
         """Creates a number of nodes within the namespace."""
@@ -219,8 +220,9 @@ class AzureNodeProvider(NodeProvider):
             create = self.resource_client.deployments.begin_create_or_update
         create(
             resource_group_name=resource_group,
-            deployment_name="ray-vm-{}".format(name_tag),
-            parameters=parameters).wait()
+            deployment_name=f"ray-vm-{name_tag}",
+            parameters=parameters,
+        ).wait()
 
     @synchronized
     def set_node_tags(self, node_id, tags):
@@ -268,7 +270,7 @@ class AzureNodeProvider(NodeProvider):
             self.compute_client.virtual_machines.delete(
                 resource_group_name=resource_group, vm_name=node_id).wait()
         except Exception as e:
-            logger.warning("Failed to delete VM: {}".format(e))
+            logger.warning(f"Failed to delete VM: {e}")
 
         try:
             # delete nic
@@ -276,7 +278,7 @@ class AzureNodeProvider(NodeProvider):
                 resource_group_name=resource_group,
                 network_interface_name=metadata["nic_name"])
         except Exception as e:
-            logger.warning("Failed to delete nic: {}".format(e))
+            logger.warning(f"Failed to delete nic: {e}")
 
         # delete ip address
         if "public_ip_name" in metadata:
@@ -285,7 +287,7 @@ class AzureNodeProvider(NodeProvider):
                     resource_group_name=resource_group,
                     public_ip_address_name=metadata["public_ip_name"])
             except Exception as e:
-                logger.warning("Failed to delete public ip: {}".format(e))
+                logger.warning(f"Failed to delete public ip: {e}")
 
         # delete disks
         for disk in disks:
@@ -293,7 +295,7 @@ class AzureNodeProvider(NodeProvider):
                 self.compute_client.disks.delete(
                     resource_group_name=resource_group, disk_name=disk)
             except Exception as e:
-                logger.warning("Failed to delete disk: {}".format(e))
+                logger.warning(f"Failed to delete disk: {e}")
 
     def _get_node(self, node_id):
         self._get_filtered_nodes({})  # Side effect: updates cache

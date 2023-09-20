@@ -48,10 +48,10 @@ class NodeLauncher(threading.Thread):
             launch_config.update(
                 config["available_node_types"][node_type]["node_config"])
         launch_hash = hash_launch_conf(launch_config, config["auth"])
-        self.log("Launching {} nodes, type {}.".format(count, node_type))
+        self.log(f"Launching {count} nodes, type {node_type}.")
         node_config = copy.deepcopy(config.get("worker_nodes", {}))
         node_tags = {
-            TAG_RAY_NODE_NAME: "ray-{}-worker".format(config["cluster_name"]),
+            TAG_RAY_NODE_NAME: f'ray-{config["cluster_name"]}-worker',
             TAG_RAY_NODE_KIND: NODE_KIND_WORKER,
             TAG_RAY_NODE_STATUS: STATUS_UNINITIALIZED,
             TAG_RAY_LAUNCH_CONFIG: launch_hash,
@@ -80,7 +80,7 @@ class NodeLauncher(threading.Thread):
     def run(self):
         while True:
             config, count, node_type = self.queue.get()
-            self.log("Got {} nodes to launch.".format(count))
+            self.log(f"Got {count} nodes to launch.")
             try:
                 self._launch_node(config, count, node_type)
             except Exception:
@@ -92,5 +92,5 @@ class NodeLauncher(threading.Thread):
                 self.prom_metrics.pending_nodes.set(self.pending.value)
 
     def log(self, statement):
-        prefix = "NodeLauncher{}:".format(self.index)
-        logger.info(prefix + " {}".format(statement))
+        prefix = f"NodeLauncher{self.index}:"
+        logger.info(f"{prefix} {statement}")

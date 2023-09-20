@@ -43,17 +43,21 @@ RAY_PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 RAY_PRIVATE_DIR = "_private"
 AUTOSCALER_PRIVATE_DIR = "autoscaler/_private"
 REDIS_EXECUTABLE = os.path.join(
-    RAY_PATH, "core/src/ray/thirdparty/redis/src/redis-server" + EXE_SUFFIX)
+    RAY_PATH, f"core/src/ray/thirdparty/redis/src/redis-server{EXE_SUFFIX}"
+)
 
 # Location of the raylet executables.
-RAYLET_EXECUTABLE = os.path.join(RAY_PATH,
-                                 "core/src/ray/raylet/raylet" + EXE_SUFFIX)
+RAYLET_EXECUTABLE = os.path.join(
+    RAY_PATH, f"core/src/ray/raylet/raylet{EXE_SUFFIX}"
+)
 GCS_SERVER_EXECUTABLE = os.path.join(
-    RAY_PATH, "core/src/ray/gcs/gcs_server" + EXE_SUFFIX)
+    RAY_PATH, f"core/src/ray/gcs/gcs_server{EXE_SUFFIX}"
+)
 
 # Location of the cpp default worker executables.
 DEFAULT_WORKER_EXECUTABLE = os.path.join(
-    RAY_PATH, "core/src/ray/cpp/default_worker" + EXE_SUFFIX)
+    RAY_PATH, f"core/src/ray/cpp/default_worker{EXE_SUFFIX}"
+)
 
 DASHBOARD_DEPENDENCY_ERROR_MESSAGE = (
     "Not all Ray Dashboard dependencies were "
@@ -111,7 +115,7 @@ class ConsolePopen(subprocess.Popen):
 
 
 def address(ip_address, port):
-    return ip_address + ":" + str(port)
+    return f"{ip_address}:{str(port)}"
 
 
 def new_port(lower_bound=10000, upper_bound=65535, denylist=None):
@@ -229,8 +233,10 @@ def get_ray_address_to_use_or_die():
 
 
 def _log_dashboard_dependency_warning_once():
-    if log_once("dashboard_failed_import"
-                ) and not os.getenv("RAY_DISABLE_IMPORT_WARNING") == "1":
+    if (
+        log_once("dashboard_failed_import")
+        and os.getenv("RAY_DISABLE_IMPORT_WARNING") != "1"
+    ):
         warning_message = DASHBOARD_DEPENDENCY_ERROR_MESSAGE
         warning_message += " To disable this message, set " \
                            "RAY_DISABLE_IMPORT_WARNING " \
@@ -245,7 +251,6 @@ def find_redis_address_or_die():
         raise ConnectionError(
             f"Found multiple active Ray instances: {redis_addresses}. "
             "Please specify the one to connect to by setting `address`.")
-        sys.exit(1)
     elif not redis_addresses:
         raise ConnectionError(
             "Could not find any running Ray instance. "
@@ -650,20 +655,13 @@ def wait_for_redis_to_start(redis_ip_address, redis_port, password=None):
         try:
             # Run some random command and see if it worked.
             logger.debug(
-                "Waiting for redis server at {}:{} to respond...".format(
-                    redis_ip_address, redis_port))
+                f"Waiting for redis server at {redis_ip_address}:{redis_port} to respond..."
+            )
             redis_client.client_list()
-        # If the Redis service is delayed getting set up for any reason, we may
-        # get a redis.ConnectionError: Error 111 connecting to host:port.
-        # Connection refused.
-        # Unfortunately, redis.ConnectionError is also the base class of
-        # redis.AuthenticationError. We *don't* want to obscure a
-        # redis.AuthenticationError, because that indicates the user provided a
-        # bad password. Thus a double except clause to ensure a
-        # redis.AuthenticationError isn't trapped here.
         except redis.AuthenticationError as authEx:
-            raise RuntimeError("Unable to connect to Redis at {}:{}.".format(
-                redis_ip_address, redis_port)) from authEx
+            raise RuntimeError(
+                f"Unable to connect to Redis at {redis_ip_address}:{redis_port}."
+            ) from authEx
         except redis.ConnectionError as connEx:
             if i >= num_retries - 1:
                 raise RuntimeError(
@@ -770,12 +768,10 @@ def start_reaper(fate_share=None):
             os.setpgrp()
     except OSError as e:
         errcode = e.errno
-        if errcode == errno.EPERM and os.getpgrp() == os.getpid():
-            # Nothing to do; we're already a session leader.
-            pass
-        else:
-            logger.warning("setpgrp failed, processes may not be "
-                           "cleaned up properly: {}.".format(e))
+        if errcode != errno.EPERM or os.getpgrp() != os.getpid():
+            logger.warning(
+                f"setpgrp failed, processes may not be cleaned up properly: {e}."
+            )
             # Don't start the reaper in this case as it could result in killing
             # other user processes.
             return None
@@ -783,12 +779,12 @@ def start_reaper(fate_share=None):
     reaper_filepath = os.path.join(RAY_PATH, RAY_PRIVATE_DIR,
                                    "ray_process_reaper.py")
     command = [sys.executable, "-u", reaper_filepath]
-    process_info = start_ray_process(
+    return start_ray_process(
         command,
         ray_constants.PROCESS_TYPE_REAPER,
         pipe_stdin=True,
-        fate_share=fate_share)
-    return process_info
+        fate_share=fate_share,
+    )
 
 
 def start_redis(node_ip_address,
@@ -851,7 +847,8 @@ def start_redis(node_ip_address,
         port = int(port)
         redis_address = address(primary_redis_ip, port)
         primary_redis_client = create_redis_client(
-            "%s:%s" % (primary_redis_ip, port), password=password)
+            f"{primary_redis_ip}:{port}", password=password
+        )
         # Deleting the key to avoid duplicated rpush.
         primary_redis_client.delete("RedisShards")
     else:
@@ -1040,8 +1037,9 @@ def _start_redis_instance(executable,
         redis_client.config_set("maxmemory", str(redis_max_memory))
         redis_client.config_set("maxmemory-policy", "allkeys-lru")
         redis_client.config_set("maxmemory-samples", "10")
-        logger.debug("Starting Redis shard with {} GB max memory.".format(
-            round(redis_max_memory / 1e9, 2)))
+        logger.debug(
+            f"Starting Redis shard with {round(redis_max_memory / 1000000000.0, 2)} GB max memory."
+        )
 
     # If redis_max_clients is provided, attempt to raise the number of maximum
     # number of Redis clients.
@@ -1115,13 +1113,13 @@ def start_log_monitor(redis_address,
     ]
     if redis_password:
         command += ["--redis-password", redis_password]
-    process_info = start_ray_process(
+    return start_ray_process(
         command,
         ray_constants.PROCESS_TYPE_LOG_MONITOR,
         stdout_file=stdout_file,
         stderr_file=stderr_file,
-        fate_share=fate_share)
-    return process_info
+        fate_share=fate_share,
+    )
 
 
 def start_dashboard(require_dashboard,
@@ -1194,9 +1192,8 @@ def start_dashboard(require_dashboard,
         except ImportError:
             if require_dashboard:
                 raise ImportError(DASHBOARD_DEPENDENCY_ERROR_MESSAGE)
-            else:
-                _log_dashboard_dependency_warning_once()
-                return None, None
+            _log_dashboard_dependency_warning_once()
+            return None, None
 
         # Start the dashboard process.
         dashboard_dir = "new_dashboard"
@@ -1268,9 +1265,8 @@ def start_dashboard(require_dashboard,
     except Exception as e:
         if require_dashboard:
             raise e from e
-        else:
-            logger.error(f"Failed to start the dashboard: {e}")
-            return None, None
+        logger.error(f"Failed to start the dashboard: {e}")
+        return None, None
 
 
 def start_gcs_server(redis_address,
@@ -1301,7 +1297,6 @@ def start_gcs_server(redis_address,
         ProcessInfo for the process that was started.
     """
     gcs_ip_address, gcs_port = redis_address.split(":")
-    redis_password = redis_password or ""
     config_str = serialize_config(config)
     if gcs_server_port is None:
         gcs_server_port = 0
@@ -1316,15 +1311,15 @@ def start_gcs_server(redis_address,
         f"--metrics-agent-port={metrics_agent_port}",
         f"--node-ip-address={node_ip_address}",
     ]
-    if redis_password:
+    if redis_password := redis_password or "":
         command += [f"--redis_password={redis_password}"]
-    process_info = start_ray_process(
+    return start_ray_process(
         command,
         ray_constants.PROCESS_TYPE_GCS_SERVER,
         stdout_file=stdout_file,
         stderr_file=stderr_file,
-        fate_share=fate_share)
-    return process_info
+        fate_share=fate_share,
+    )
 
 
 def start_raylet(redis_address,
@@ -1448,7 +1443,7 @@ def start_raylet(redis_address,
         pass
 
     include_java = has_java_command and ray_java_installed
-    if include_java is True:
+    if include_java:
         java_worker_command = build_java_worker_command(
             setup_worker_path,
             worker_setup_hook,
@@ -1667,9 +1662,13 @@ def build_java_worker_command(
     if node_ip_address is not None:
         pairs.append(("ray.node-ip", node_ip_address))
 
-    pairs.append(("ray.home", RAY_HOME))
-    pairs.append(("ray.logging.dir", os.path.join(session_dir, "logs")))
-    pairs.append(("ray.session-dir", session_dir))
+    pairs.extend(
+        (
+            ("ray.home", RAY_HOME),
+            ("ray.logging.dir", os.path.join(session_dir, "logs")),
+            ("ray.session-dir", session_dir),
+        )
+    )
     command_args = ["-D{}={}".format(*pair) for pair in pairs]
 
     # Add ray jars path to java classpath
@@ -1743,8 +1742,7 @@ def determine_plasma_store_config(object_store_memory,
     if not isinstance(object_store_memory, int):
         object_store_memory = int(object_store_memory)
 
-    if huge_pages and not (sys.platform == "linux"
-                           or sys.platform == "linux2"):
+    if huge_pages and sys.platform not in ["linux", "linux2"]:
         raise ValueError("The huge_pages argument is only supported on "
                          "Linux.")
 
@@ -1754,7 +1752,7 @@ def determine_plasma_store_config(object_store_memory,
     # /dev/shm on Linux, unless the shared-memory file system is too small,
     # in which case we default to /tmp on Linux.
     if plasma_directory is None:
-        if sys.platform == "linux" or sys.platform == "linux2":
+        if sys.platform in ["linux", "linux2"]:
             shm_avail = ray._private.utils.get_shared_memory_bytes()
             # Compare the requested memory size to the memory available in
             # /dev/shm.
@@ -1764,13 +1762,8 @@ def determine_plasma_store_config(object_store_memory,
                   and object_store_memory >
                   ray_constants.REQUIRE_SHM_SIZE_THRESHOLD):
                 raise ValueError(
-                    "The configured object store size ({} GB) exceeds "
-                    "/dev/shm size ({} GB). This will harm performance. "
-                    "Consider deleting files in /dev/shm or increasing its "
-                    "size with "
-                    "--shm-size in Docker. To ignore this warning, "
-                    "set RAY_OBJECT_STORE_ALLOW_SLOW_STORAGE=1.".format(
-                        object_store_memory / 1e9, shm_avail / 1e9))
+                    f"The configured object store size ({object_store_memory / 1000000000.0} GB) exceeds /dev/shm size ({shm_avail / 1000000000.0} GB). This will harm performance. Consider deleting files in /dev/shm or increasing its size with --shm-size in Docker. To ignore this warning, set RAY_OBJECT_STORE_ALLOW_SLOW_STORAGE=1."
+                )
             else:
                 plasma_directory = ray._private.utils.get_user_temp_dir()
                 logger.warning(
@@ -1806,16 +1799,14 @@ def determine_plasma_store_config(object_store_memory,
                          "plasma_directory argument must be provided.")
 
     if object_store_memory < ray_constants.OBJECT_STORE_MINIMUM_MEMORY_BYTES:
-        raise ValueError("Attempting to cap object store memory usage at {} "
-                         "bytes, but the minimum allowed is {} bytes.".format(
-                             object_store_memory,
-                             ray_constants.OBJECT_STORE_MINIMUM_MEMORY_BYTES))
+        raise ValueError(
+            f"Attempting to cap object store memory usage at {object_store_memory} bytes, but the minimum allowed is {ray_constants.OBJECT_STORE_MINIMUM_MEMORY_BYTES} bytes."
+        )
 
     # Print the object store memory using two decimal places.
     logger.debug(
-        "Determine to start the Plasma object store with {} GB memory "
-        "using {}.".format(
-            round(object_store_memory / 10**9, 2), plasma_directory))
+        f"Determine to start the Plasma object store with {round(object_store_memory / 10**9, 2)} GB memory using {plasma_directory}."
+    )
 
     return plasma_directory, object_store_memory
 
@@ -1855,21 +1846,21 @@ def start_worker(node_ip_address,
         sys.executable,
         "-u",
         worker_path,
-        "--node-ip-address=" + node_ip_address,
-        "--object-store-name=" + object_store_name,
-        "--raylet-name=" + raylet_name,
-        "--redis-address=" + str(redis_address),
-        "--temp-dir=" + temp_dir,
+        f"--node-ip-address={node_ip_address}",
+        f"--object-store-name={object_store_name}",
+        f"--raylet-name={raylet_name}",
+        f"--redis-address={str(redis_address)}",
+        f"--temp-dir={temp_dir}",
     ]
     if raylet_ip_address is not None:
-        command.append("--raylet-ip-address=" + raylet_ip_address)
-    process_info = start_ray_process(
+        command.append(f"--raylet-ip-address={raylet_ip_address}")
+    return start_ray_process(
         command,
         ray_constants.PROCESS_TYPE_WORKER,
         stdout_file=stdout_file,
         stderr_file=stderr_file,
-        fate_share=fate_share)
-    return process_info
+        fate_share=fate_share,
+    )
 
 
 def start_monitor(redis_address,
@@ -1910,18 +1901,18 @@ def start_monitor(redis_address,
         f"--logging-rotate-backup-count={backup_count}"
     ]
     if autoscaling_config:
-        command.append("--autoscaling-config=" + str(autoscaling_config))
+        command.append(f"--autoscaling-config={str(autoscaling_config)}")
     if redis_password:
-        command.append("--redis-password=" + redis_password)
+        command.append(f"--redis-password={redis_password}")
     if monitor_ip:
-        command.append("--monitor-ip=" + monitor_ip)
-    process_info = start_ray_process(
+        command.append(f"--monitor-ip={monitor_ip}")
+    return start_ray_process(
         command,
         ray_constants.PROCESS_TYPE_MONITOR,
         stdout_file=stdout_file,
         stderr_file=stderr_file,
-        fate_share=fate_share)
-    return process_info
+        fate_share=fate_share,
+    )
 
 
 def start_ray_client_server(redis_address,
@@ -1953,31 +1944,32 @@ def start_ray_client_server(redis_address,
     setup_worker_path = os.path.join(root_ray_dir, "workers",
                                      ray_constants.SETUP_WORKER_FILENAME)
     conda_shim_flag = (
-        "--worker-setup-hook=" + ray_constants.DEFAULT_WORKER_SETUP_HOOK)
+        f"--worker-setup-hook={ray_constants.DEFAULT_WORKER_SETUP_HOOK}"
+    )
 
     python_executable = sys.executable
     command = [
         python_executable,
         setup_worker_path,
-        conda_shim_flag,  # These two args are to use the shim process.
+        conda_shim_flag,
         f"--worker-entrypoint={python_executable}",
         "-m",
         "ray.util.client.server",
-        "--redis-address=" + str(redis_address),
-        "--port=" + str(ray_client_server_port),
-        "--mode=" + server_type
+        f"--redis-address={str(redis_address)}",
+        f"--port={str(ray_client_server_port)}",
+        f"--mode={server_type}",
     ]
     if redis_password:
-        command.append("--redis-password=" + redis_password)
+        command.append(f"--redis-password={redis_password}")
 
     if serialized_runtime_env:
-        command.append("--serialized-runtime-env=" + serialized_runtime_env)
+        command.append(f"--serialized-runtime-env={serialized_runtime_env}")
     if session_dir:
         command.append(f"--session-dir={session_dir}")
-    process_info = start_ray_process(
+    return start_ray_process(
         command,
         ray_constants.PROCESS_TYPE_RAY_CLIENT_SERVER,
         stdout_file=stdout_file,
         stderr_file=stderr_file,
-        fate_share=fate_share)
-    return process_info
+        fate_share=fate_share,
+    )

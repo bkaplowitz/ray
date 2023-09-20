@@ -132,7 +132,7 @@ class ReportHead(dashboard_utils.DashboardHeadModule):
         aioredis_client = self._dashboard_head.aioredis_client
         receiver = Receiver()
 
-        reporter_key = "{}*".format(reporter_consts.REPORTER_PREFIX)
+        reporter_key = f"{reporter_consts.REPORTER_PREFIX}*"
         await aioredis_client.psubscribe(receiver.pattern(reporter_key))
         logger.info(f"Subscribed to {reporter_key}")
 

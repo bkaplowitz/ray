@@ -63,17 +63,17 @@ class AliyunNodeProvider(NodeProvider):
                 "Value": self.cluster_name,
             },
         ]
-        for k, v in tag_filters.items():
-            tags.append({
+        tags.extend(
+            {
                 "Key": k,
                 "Value": v,
-            })
-
+            }
+            for k, v in tag_filters.items()
+        )
         instances = self.acs.describe_instances(tags=tags)
         non_terminated_instance = []
         for instance in instances:
-            if instance.get("Status") == RUNNING or instance.get(
-                    "Status") == PENDING:
+            if instance.get("Status") in [RUNNING, PENDING]:
                 non_terminated_instance.append(instance.get("InstanceId"))
                 self.cached_nodes[instance.get("InstanceId")] = instance
         return non_terminated_instance
@@ -101,11 +101,11 @@ class AliyunNodeProvider(NodeProvider):
             assert len(instances) == 1
             instance = instances[0]
             if instance.get("Tags") is not None:
-                node_tags = dict()
-                for tag in instance.get("Tags").get("Tag"):
-                    node_tags[tag.get("TagKey")] = tag.get("TagValue")
-                return node_tags
-        return dict()
+                return {
+                    tag.get("TagKey"): tag.get("TagValue")
+                    for tag in instance.get("Tags").get("Tag")
+                }
+        return {}
 
     def external_ip(self, node_id: str) -> str:
         while True:
@@ -114,14 +114,13 @@ class AliyunNodeProvider(NodeProvider):
                 assert len(instances)
                 instance = instances[0]
                 if instance.get("PublicIpAddress") is not None \
-                    and instance.get(
+                        and instance.get(
                         "PublicIpAddress").get("IpAddress") is not None:
                     if len(instance.get("PublicIpAddress").get(
                             "IpAddress")) > 0:
                         return instance.get("PublicIpAddress").get(
                             "IpAddress")[0]
-            cli_logger.error(
-                "PublicIpAddress attribute is not exist. %s" % instance)
+            cli_logger.error(f"PublicIpAddress attribute is not exist. {instance}")
             time.sleep(STOPPING_NODE_DELAY)
 
     def internal_ip(self, node_id: str) -> str:
@@ -137,8 +136,7 @@ class AliyunNodeProvider(NodeProvider):
                                     "PrivateIpAddress").get("IpAddress")) > 0:
                     return instance.get("VpcAttributes").get(
                         "PrivateIpAddress").get("IpAddress")[0]
-            cli_logger.error(
-                "InnerIpAddress attribute is not exist. %s" % instance)
+            cli_logger.error(f"InnerIpAddress attribute is not exist. {instance}")
             time.sleep(STOPPING_NODE_DELAY)
 
     def set_node_tags(self, node_id: str, tags: Dict[str, str]) -> None:
@@ -182,8 +180,8 @@ class AliyunNodeProvider(NodeProvider):
     def _create_tags(self, batch_updates):
 
         for (k, v), node_ids in batch_updates.items():
-            m = "Set tag {}={} on {}".format(k, v, node_ids)
-            with LogTimer("AliyunNodeProvider: {}".format(m)):
+            m = f"Set tag {k}={v} on {node_ids}"
+            with LogTimer(f"AliyunNodeProvider: {m}"):
                 if k == TAG_RAY_NODE_NAME:
                     k = "Name"
 
@@ -209,23 +207,21 @@ class AliyunNodeProvider(NodeProvider):
         }]
 
         reused_nodes_dict = {}
-        if self.cache_stopped_nodes:
-            reuse_nodes_candidate = self.acs.describe_instances(
-                tags=filter_tags)
-            if reuse_nodes_candidate:
+        if reuse_nodes_candidate := self.acs.describe_instances(tags=filter_tags):
+            if self.cache_stopped_nodes:
                 with cli_logger.group("Stopping instances to reuse"):
                     reuse_node_ids = []
                     for node in reuse_nodes_candidate:
                         node_id = node.get("InstanceId")
                         status = node.get("Status")
-                        if status != STOPPING and status != STOPPED:
+                        if status not in [STOPPING, STOPPED]:
                             continue
                         if status == STOPPING:
                             # wait for node stopped
                             while self.acs.describe_instances(
                                     instance_ids=[node_id])[0].get(
                                         "Status") == STOPPING:
-                                logging.info("wait for %s stop" % node_id)
+                                logging.info(f"wait for {node_id} stop")
                                 time.sleep(STOPPING_NODE_DELAY)
                         # logger.info("reuse %s" % node_id)
                         reuse_node_ids.append(node_id)
@@ -263,7 +259,7 @@ class AliyunNodeProvider(NodeProvider):
         return all_created_nodes
 
     def terminate_node(self, node_id: str) -> None:
-        logger.info("terminate node: %s" % node_id)
+        logger.info(f"terminate node: {node_id}")
         if self.cache_stopped_nodes:
             logger.info(
                 "Stopping instance {} (to terminate instead, "
@@ -279,10 +275,8 @@ class AliyunNodeProvider(NodeProvider):
             return
         if self.cache_stopped_nodes:
             logger.info(
-                "Stopping instances {} (to terminate instead, "
-                "set `cache_stopped_nodes: False` "
-                "under `provider` in the cluster configuration)".format(
-                    node_ids))
+                f"Stopping instances {node_ids} (to terminate instead, set `cache_stopped_nodes: False` under `provider` in the cluster configuration)"
+            )
 
             self.acs.stop_instances(node_ids)
         else:
@@ -299,7 +293,7 @@ class AliyunNodeProvider(NodeProvider):
         # usually means the node was recently preempted or terminated.
         matches = self.acs.describe_instances(instance_ids=[node_id])
 
-        assert len(matches) == 1, "Invalid instance id {}".format(node_id)
+        assert len(matches) == 1, f"Invalid instance id {node_id}"
         return matches[0]
 
     def _get_cached_node(self, node_id):

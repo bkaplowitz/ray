@@ -164,8 +164,7 @@ class Model(object):
     """This class holds the neural network weights."""
 
     def __init__(self):
-        self.weights = {}
-        self.weights["W1"] = np.random.randn(H, D) / np.sqrt(D)
+        self.weights = {"W1": np.random.randn(H, D) / np.sqrt(D)}
         self.weights["W2"] = np.random.randn(H) / np.sqrt(H)
 
     def policy_forward(self, x):
@@ -281,7 +280,7 @@ for i in range(1, 1 + iterations):
     gradient_ids = [
         actor.compute_gradient.remote(model_id) for actor in actors
     ]
-    for batch in range(batch_size):
+    for _ in range(batch_size):
         [grad_id], gradient_ids = ray.wait(gradient_ids)
         grad, reward_sum = ray.get(grad_id)
         # Accumulate the gradient over batch.
@@ -290,8 +289,8 @@ for i in range(1, 1 + iterations):
         running_reward = (reward_sum if running_reward is None else
                           running_reward * 0.99 + reward_sum * 0.01)
     end_time = time.time()
-    print("Batch {} computed {} rollouts in {} seconds, "
-          "running mean is {}".format(i, batch_size, end_time - start_time,
-                                      running_reward))
+    print(
+        f"Batch {i} computed {batch_size} rollouts in {end_time - start_time} seconds, running mean is {running_reward}"
+    )
     model.update(grad_buffer, rmsprop_cache, learning_rate, decay_rate)
     zero_grads(grad_buffer)

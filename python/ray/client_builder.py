@@ -184,11 +184,10 @@ class ClientBuilder:
 
         if kwargs:
             expected_sig = inspect.signature(ray_driver_init)
-            extra_args = set(kwargs.keys()).difference(
-                expected_sig.parameters.keys())
-            if len(extra_args) > 0:
-                raise RuntimeError("Got unexpected kwargs: {}".format(
-                    ", ".join(extra_args)))
+            if extra_args := set(kwargs.keys()).difference(
+                expected_sig.parameters.keys()
+            ):
+                raise RuntimeError(f'Got unexpected kwargs: {", ".join(extra_args)}')
             self._remote_init_kwargs = kwargs
             unknown = ", ".join(kwargs)
             logger.info("Passing the following kwargs to ray.init() "
@@ -205,13 +204,13 @@ class _LocalClientBuilder(ClientBuilder):
             address=self.address, job_config=self._job_config)
         return ClientContext(
             dashboard_url=connection_dict["webui_url"],
-            python_version="{}.{}.{}".format(
-                sys.version_info[0], sys.version_info[1], sys.version_info[2]),
+            python_version=f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}",
             ray_version=ray.__version__,
             ray_commit=ray.__commit__,
             protocol_version=None,
             _num_clients=1,
-            _context_to_restore=None)
+            _context_to_restore=None,
+        )
 
 
 def _split_address(address: str) -> Tuple[str, str]:
@@ -219,7 +218,7 @@ def _split_address(address: str) -> Tuple[str, str]:
     Splits address into a module string (scheme) and an inner_address.
     """
     if "://" not in address:
-        address = "ray://" + address
+        address = f"ray://{address}"
     # NOTE: We use a custom splitting function instead of urllib because
     # PEP allows "underscores" in a module names, while URL schemes do not
     # allow them.

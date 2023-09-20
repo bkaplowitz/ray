@@ -102,13 +102,6 @@ class GitWildMatchPattern(RegexPattern):
 				if pattern_segs[0] != '**':
 					pattern_segs.insert(0, '**')
 
-			else:
-				# EDGE CASE: A pattern without a beginning slash ('/') but
-				# contains at least one prepended directory (e.g.
-				# "dir/{pattern}") should not match "**/dir/{pattern}",
-				# according to `git check-ignore` (v2.4.1).
-				pass
-
 			if not pattern_segs[-1] and len(pattern_segs) > 1:
 				# A pattern ending with a slash ('/') will match all descendant
 				# paths if it is a directory but not if it is a regular file.
@@ -151,7 +144,7 @@ class GitWildMatchPattern(RegexPattern):
 					if need_slash:
 						output.append('/')
 					output.append(cls._translate_segment_glob(seg))
-					if i == end and include is True:
+					if i == end and include:
 						# A pattern ending without a slash ('/') will match a file
 						# or a directory (with paths underneath it). E.g., "foo"
 						# matches "foo", "foo/bar", "foo/bar/baz", etc.

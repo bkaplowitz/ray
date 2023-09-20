@@ -77,14 +77,14 @@ class ConcurrentCounter:
 def validate_config(config: Dict[str, Any]) -> None:
     """Required Dicts indicate that no extra fields can be introduced."""
     if not isinstance(config, dict):
-        raise ValueError("Config {} is not a dictionary".format(config))
+        raise ValueError(f"Config {config} is not a dictionary")
 
     with open(RAY_SCHEMA_PATH) as f:
         schema = json.load(f)
 
     try:
         import jsonschema
-    except (ModuleNotFoundError, ImportError) as e:
+    except ImportError as e:
         # Don't log a warning message here. Logging be handled by upstream.
         raise e from None
 
@@ -290,10 +290,7 @@ def fill_node_type_max_workers(config):
 def with_head_node_ip(cmds, head_ip=None):
     if head_ip is None:
         head_ip = services.get_node_ip_address()
-    out = []
-    for cmd in cmds:
-        out.append("export RAY_HEAD_IP={}; {}".format(head_ip, cmd))
-    return out
+    return [f"export RAY_HEAD_IP={head_ip}; {cmd}" for cmd in cmds]
 
 
 def hash_launch_conf(node_conf, auth):
@@ -396,19 +393,14 @@ def add_prefix(info_string, prefix):
     """Prefixes each line of info_string, except the first, by prefix."""
     lines = info_string.split("\n")
     prefixed_lines = [lines[0]]
-    for line in lines[1:]:
-        prefixed_line = ":".join([prefix, line])
-        prefixed_lines.append(prefixed_line)
-    prefixed_info_string = "\n".join(prefixed_lines)
-    return prefixed_info_string
+    prefixed_lines.extend(":".join([prefix, line]) for line in lines[1:])
+    return "\n".join(prefixed_lines)
 
 
 def format_pg(pg):
     strategy = pg["strategy"]
     bundles = pg["bundles"]
-    shape_strs = []
-    for bundle, count in bundles:
-        shape_strs.append(f"{bundle} * {count}")
+    shape_strs = [f"{bundle} * {count}" for bundle, count in bundles]
     bundles_str = ", ".join(shape_strs)
     return f"{bundles_str} ({strategy})"
 
@@ -424,13 +416,13 @@ def parse_placement_group_resource_str(
         Tuple of (resource_name, placement_group_name). placement_group_name
         could be None if its not a placement group resource.
     """
-    result = PLACEMENT_GROUP_RESOURCE_BUNDLED_PATTERN.match(
-        placement_group_resource_str)
-    if result:
+    if result := PLACEMENT_GROUP_RESOURCE_BUNDLED_PATTERN.match(
+        placement_group_resource_str
+    ):
         return (result.group(1), result.group(3))
-    result = PLACEMENT_GROUP_RESOURCE_PATTERN.match(
-        placement_group_resource_str)
-    if result:
+    if result := PLACEMENT_GROUP_RESOURCE_PATTERN.match(
+        placement_group_resource_str
+    ):
         return (result.group(1), result.group(2))
     return (placement_group_resource_str, None)
 
@@ -458,7 +450,7 @@ def get_usage_report(lm_summary: LoadMetricsSummary) -> str:
 
         line = f" {used}/{total} {resource}"
         if used_in_pg != 0:
-            line = line + f" ({used_in_pg} reserved in placement groups)"
+            line = f"{line} ({used_in_pg} reserved in placement groups)"
 
         if resource in ["memory", "object_store_memory"]:
             to_GiB = 1 / 2**30
@@ -467,11 +459,9 @@ def get_usage_report(lm_summary: LoadMetricsSummary) -> str:
             used_in_pg *= to_GiB
             line = f" {used:.2f}/{total:.3f} GiB {resource}"
             if used_in_pg != 0:
-                line = line + f" ({used_in_pg:.2f} GiB reserved" \
-                    + " in placement groups)"
+                line = f"{line} ({used_in_pg:.2f} GiB reserved in placement groups)"
         usage_lines.append(line)
-    usage_report = "\n".join(usage_lines)
-    return usage_report
+    return "\n".join(usage_lines)
 
 
 def format_resource_demand_summary(
@@ -485,7 +475,7 @@ def format_resource_demand_summary(
                  {"memory": 1} return {"memory": 1}, False
         """
         using_placement_group = False
-        result_bundle = dict()
+        result_bundle = {}
         for pg_resource_str, resource_count in bundle.items():
             (resource_name,
              pg_name) = parse_placement_group_resource_str(pg_resource_str)
@@ -528,11 +518,7 @@ def get_demand_report(lm_summary: LoadMetricsSummary):
     for bundle, count in lm_summary.request_demand:
         line = f" {bundle}: {count}+ from request_resources()"
         demand_lines.append(line)
-    if len(demand_lines) > 0:
-        demand_report = "\n".join(demand_lines)
-    else:
-        demand_report = " (no resource demands)"
-    return demand_report
+    return "\n".join(demand_lines) if demand_lines else " (no resource demands)"
 
 
 def format_info_string(lm_summary, autoscaler_summary, time=None):
@@ -565,16 +551,13 @@ def format_info_string(lm_summary, autoscaler_summary, time=None):
     failure_lines = failure_lines[:
                                   -constants.AUTOSCALER_MAX_FAILURES_DISPLAYED:
                                   -1]
-    failure_report = "Recent failures:\n"
-    if failure_lines:
-        failure_report += "\n".join(failure_lines)
-    else:
-        failure_report += " (no failures)"
-
+    failure_report = "Recent failures:\n" + (
+        "\n".join(failure_lines) if failure_lines else " (no failures)"
+    )
     usage_report = get_usage_report(lm_summary)
     demand_report = get_demand_report(lm_summary)
 
-    formatted_output = f"""{header}
+    return f"""{header}
 Node status
 {separator}
 Healthy:
@@ -591,7 +574,6 @@ Usage:
 
 Demands:
 {demand_report}"""
-    return formatted_output
 
 
 def format_info_string_no_node_types(lm_summary, time=None):
@@ -609,7 +591,7 @@ def format_info_string_no_node_types(lm_summary, time=None):
     usage_report = get_usage_report(lm_summary)
     demand_report = get_demand_report(lm_summary)
 
-    formatted_output = f"""{header}
+    return f"""{header}
 Node status
 {separator}
 {node_report}
@@ -621,4 +603,3 @@ Usage:
 
 Demands:
 {demand_report}"""
-    return formatted_output
