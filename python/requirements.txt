@@ -5,7 +5,7 @@
 # In short, if you change it here, PLEASE also change it in setup.py.
 #
 # setup.py install_requires
-aiohttp==3.7
+aiohttp==3.13.4
 aioredis < 2
 click >= 7.0
 cloudpickle
@@ -68,14 +68,14 @@ opentelemetry-exporter-otlp==1.1.0
 pexpect
 Pillow; platform_system != "Windows"
 pygments
-pytest==5.4.3
+pytest==9.0.3
 pytest-asyncio
 pytest-rerunfailures
 pytest-sugar
 pytest-lazy-fixture
 pytest-timeout
 scikit-learn==0.22.2
-tensorflow==2.5.1
+tensorflow==2.21.0
 testfixtures
 werkzeug
 xlrd
